@@ -1,0 +1,238 @@
+/* CSS Styles for PDF Meeting Report */
+
+@page {
+    size: a4;
+    margin: 2cm;
+    margin-bottom: 2.5cm;
+    @frame footer_frame {
+        -pdf-frame-content: footer_content;
+        left: 57pt;
+        width: 480pt;
+        top: 785pt;
+        height: 30pt;
+    }
+}
+
+
+body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: #2d3748;
+    line-height: 1.5;
+    font-size: 10pt;
+}
+
+/* Header styling */
+.header {
+    margin-bottom: 10px;
+}
+
+.logo {
+    max-height: 50px;
+    max-width: 200px;
+}
+
+.company-name {
+    font-size: 14pt;
+    font-weight: bold;
+    color: {theme_color};
+}
+
+.report-type-header {
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #718096;
+    margin-top: 2px;
+}
+
+.divider {
+    border-bottom: 2px solid {theme_color};
+    margin-bottom: 20px;
+}
+
+.report-title {
+    font-size: 20pt;
+    color: #1a202c;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+/* Metadata Block */
+.meta-section {
+    background-color: #f7fafc;
+    border-left: 4px solid {theme_color};
+    padding: 12px 15px;
+    margin-bottom: 25px;
+}
+
+.section-title-sub {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 11pt;
+    color: #4a5568;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.meta-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.meta-table th {
+    text-align: left;
+    font-weight: bold;
+    color: #4a5568;
+    width: 20%;
+    padding: 4px 0;
+    font-size: 9pt;
+}
+
+.meta-table td {
+    text-align: left;
+    color: #2d3748;
+    width: 30%;
+    padding: 4px 0;
+    font-size: 9pt;
+}
+
+/* Section headings */
+.section {
+    margin-bottom: 25px;
+}
+
+.section-title {
+    font-size: 13pt;
+    color: {theme_color};
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 5px;
+    margin-bottom: 12px;
+    margin-top: 0;
+}
+
+/* Paragraphs and list formatting */
+.paragraph {
+    margin-top: 0;
+    margin-bottom: 10px;
+    text-align: justify;
+}
+
+.bullet-list {
+    margin-top: 0;
+    margin-bottom: 10px;
+    padding-left: 20px;
+}
+
+.bullet-list li {
+    margin-bottom: 5px;
+}
+
+.clean-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.inline-list li {
+    display: inline-block;
+    background-color: #edf2f7;
+    color: #4a5568;
+    padding: 4px 10px;
+    margin-right: 8px;
+    margin-bottom: 8px;
+    border-radius: 3px;
+    font-size: 9pt;
+}
+
+/* Timeline Layout */
+.timeline-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.timeline-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #edf2f7;
+    font-size: 9pt;
+}
+
+.timeline-time {
+    font-weight: bold;
+    color: {secondary_color};
+    width: 15%;
+}
+
+.timeline-event {
+    color: #2d3748;
+}
+
+/* Badges */
+.sentiment-badge {
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: bold;
+    font-size: 8pt;
+    text-transform: uppercase;
+}
+
+.sentiment-positive {
+    background-color: #c6f6d5;
+    color: #22543d;
+}
+
+.sentiment-neutral {
+    background-color: #edf2f7;
+    color: #2d3748;
+}
+
+.sentiment-negative {
+    background-color: #fed7d7;
+    color: #742a2a;
+}
+
+.sentiment-mixed {
+    background-color: #feebc8;
+    color: #744210;
+}
+
+/* Data Tables (Action Items) */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.data-table th {
+    background-color: {theme_color};
+    color: white;
+    font-weight: bold;
+    text-align: left;
+    padding: 8px 10px;
+    font-size: 9pt;
+}
+
+.data-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 9pt;
+    vertical-align: top;
+}
+
+.data-table tr:nth-child(even) {
+    background-color: #f7fafc;
+}
+
+.page-break-before {
+    page-break-before: always;
+}
+
+/* Disclaimer at footer */
+.disclaimer {
+    margin-top: 40px;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 10px;
+    font-size: 7.5pt;
+    color: #a0aec0;
+    text-align: center;
+    font-style: italic;
+}

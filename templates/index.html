@@ -1,0 +1,2256 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meetily — AI Meeting Minutes</title>
+    <meta name="description"
+        content="Record, transcribe, and summarize meetings with AI-powered intelligence. Supports Groq, Gemini, NVIDIA, and Ollama.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+
+    <style>
+        /* ================================================================
+           DESIGN TOKENS
+           ================================================================ */
+        :root {
+            --sidebar-width: 260px;
+            --toolbar-height: 48px;
+
+            --bg-base: #0f1117;
+            --bg-sidebar: #13151c;
+            --bg-panel: #181a24;
+            --bg-elevated: #1e2030;
+            --bg-hover: rgba(255, 255, 255, 0.04);
+            --bg-active: rgba(99, 102, 241, 0.12);
+            --bg-input: rgba(255, 255, 255, 0.04);
+
+            --border: rgba(255, 255, 255, 0.07);
+            --border-hover: rgba(255, 255, 255, 0.14);
+            --border-focus: rgba(99, 102, 241, 0.5);
+
+            --text-1: #f0f1f5;
+            --text-2: #9096a8;
+            --text-3: #5c6278;
+
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-subtle: rgba(99, 102, 241, 0.15);
+            --accent-glow: 0 0 24px rgba(99, 102, 241, 0.3);
+
+            --green: #22c55e;
+            --green-subtle: rgba(34, 197, 94, 0.12);
+            --red: #ef4444;
+            --red-subtle: rgba(239, 68, 68, 0.12);
+            --amber: #f59e0b;
+            --amber-subtle: rgba(245, 158, 11, 0.12);
+            --blue: #3b82f6;
+            --blue-subtle: rgba(59, 130, 246, 0.12);
+
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+            --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+
+            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* ================================================================
+           RESET & BASE
+           ================================================================ */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-base);
+            color: var(--text-1);
+            min-height: 100vh;
+            display: flex;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        button {
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        input,
+        select,
+        textarea {
+            font-family: inherit;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        /* ================================================================
+           APP LAYOUT — 3 PANEL
+           ================================================================ */
+        .app-layout {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* ================================================================
+           LEFT SIDEBAR
+           ================================================================ */
+        .sidebar {
+            width: var(--sidebar-width);
+            min-width: var(--sidebar-width);
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            z-index: 10;
+        }
+
+        .sidebar-header {
+            padding: 1.25rem 1rem 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header .logo {
+            font-size: 1.35rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
+        }
+
+        .sidebar-header .version {
+            font-size: 0.65rem;
+            color: var(--text-3);
+            background: var(--bg-elevated);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .sidebar-search {
+            padding: 0 0.75rem;
+            margin-bottom: 0.5rem;
+            flex-shrink: 0;
+        }
+
+        .sidebar-search input {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-1);
+            padding: 0.5rem 0.75rem;
+            font-size: 0.8rem;
+            outline: none;
+            transition: border-color var(--transition);
+        }
+
+        .sidebar-search input::placeholder {
+            color: var(--text-3);
+        }
+
+        .sidebar-search input:focus {
+            border-color: var(--border-focus);
+        }
+
+        .meeting-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.25rem 0.5rem;
+        }
+
+        .meeting-list-empty {
+            text-align: center;
+            color: var(--text-3);
+            font-size: 0.8rem;
+            padding: 2rem 1rem;
+            line-height: 1.5;
+        }
+
+        .meeting-card {
+            padding: 0.7rem 0.75rem;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all var(--transition);
+            margin-bottom: 2px;
+            border: 1px solid transparent;
+        }
+
+        .meeting-card:hover {
+            background: var(--bg-hover);
+            border-color: var(--border);
+        }
+
+        .meeting-card.active {
+            background: var(--bg-active);
+            border-color: rgba(99, 102, 241, 0.25);
+        }
+
+        .meeting-card .mc-title {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-1);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 0.2rem;
+        }
+
+        .meeting-card .mc-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: var(--text-3);
+        }
+
+        .sidebar-actions {
+            flex-shrink: 0;
+            padding: 0.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .sidebar-action-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text-2);
+            padding: 0.55rem 0.75rem;
+            font-size: 0.82rem;
+            font-weight: 500;
+            border-radius: var(--radius-sm);
+            transition: all var(--transition);
+            text-align: left;
+        }
+
+        .sidebar-action-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-1);
+        }
+
+        .sidebar-action-btn .sa-icon {
+            font-size: 1rem;
+            flex-shrink: 0;
+            width: 20px;
+            text-align: center;
+        }
+
+        /* ================================================================
+           MAIN CONTENT AREA (2-panel split)
+           ================================================================ */
+        .main-content {
+            flex: 1;
+            display: flex;
+            height: 100vh;
+            min-width: 0;
+        }
+
+        /* ----------------------------------------------------------------
+           TRANSCRIPT PANEL (left half of main)
+           ---------------------------------------------------------------- */
+        .transcript-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border);
+            min-width: 0;
+            background: var(--bg-panel);
+        }
+
+        .panel-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+            min-height: var(--toolbar-height);
+            flex-wrap: wrap;
+            background: var(--bg-elevated);
+        }
+
+        .tb-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-2);
+            padding: 0.35rem 0.65rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            transition: all var(--transition);
+            white-space: nowrap;
+        }
+
+        .tb-btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-hover);
+            color: var(--text-1);
+        }
+
+        .tb-btn.active {
+            background: var(--accent-subtle);
+            border-color: rgba(99, 102, 241, 0.3);
+            color: var(--accent-hover);
+        }
+
+        .tb-divider {
+            width: 1px;
+            height: 20px;
+            background: var(--border);
+            margin: 0 0.25rem;
+        }
+
+        .tb-spacer {
+            flex: 1;
+        }
+
+        /* Transcript toggle pills */
+        .transcript-toggle {
+            display: none;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 2px;
+            gap: 2px;
+        }
+
+        .transcript-toggle.visible {
+            display: inline-flex;
+        }
+
+        .tt-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-3);
+            padding: 0.25rem 0.6rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+            border-radius: 6px;
+            transition: all var(--transition);
+        }
+
+        .tt-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* Transcript body */
+        .transcript-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.25rem;
+        }
+
+        .transcript-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-3);
+            text-align: center;
+            gap: 0.75rem;
+        }
+
+        .transcript-placeholder .tp-icon {
+            font-size: 3rem;
+            opacity: 0.5;
+        }
+
+        .transcript-placeholder .tp-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-2);
+        }
+
+        .transcript-placeholder .tp-sub {
+            font-size: 0.85rem;
+            max-width: 280px;
+            line-height: 1.5;
+        }
+
+        .transcript-text {
+            font-size: 0.9rem;
+            line-height: 1.7;
+            color: var(--text-1);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        /* Context input bar */
+        .context-bar {
+            flex-shrink: 0;
+            padding: 0.6rem 0.75rem;
+            border-top: 1px solid var(--border);
+            background: var(--bg-elevated);
+        }
+
+        .context-bar input {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-1);
+            padding: 0.55rem 0.75rem;
+            font-size: 0.82rem;
+            outline: none;
+            transition: border-color var(--transition);
+        }
+
+        .context-bar input::placeholder {
+            color: var(--text-3);
+        }
+
+        .context-bar input:focus {
+            border-color: var(--border-focus);
+        }
+
+        /* ----------------------------------------------------------------
+           SUMMARY PANEL (right half of main)
+           ---------------------------------------------------------------- */
+        .summary-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            background: var(--bg-base);
+        }
+
+        /* Summary toolbar */
+        .summary-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+            min-height: var(--toolbar-height);
+            flex-wrap: wrap;
+            background: var(--bg-elevated);
+        }
+
+        .tb-select {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-2);
+            padding: 0.35rem 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            outline: none;
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+
+        .tb-select:hover {
+            border-color: var(--border-hover);
+        }
+
+        .tb-select:focus {
+            border-color: var(--border-focus);
+        }
+
+        .tb-select option {
+            background: var(--bg-elevated);
+            color: var(--text-1);
+        }
+
+        .regen-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            border: none;
+            color: white;
+            padding: 0.4rem 0.75rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border-radius: var(--radius-sm);
+            transition: all var(--transition);
+            box-shadow: var(--accent-glow);
+        }
+
+        .regen-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0 32px rgba(99, 102, 241, 0.45);
+        }
+
+        .regen-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Summary body */
+        .summary-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+
+        .summary-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-3);
+            text-align: center;
+            gap: 0.75rem;
+        }
+
+        .summary-placeholder .sp-icon {
+            font-size: 3rem;
+            opacity: 0.5;
+        }
+
+        .summary-placeholder .sp-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-2);
+        }
+
+        .summary-placeholder .sp-sub {
+            font-size: 0.85rem;
+            max-width: 300px;
+            line-height: 1.5;
+        }
+
+        /* Summary content sections */
+        .summary-content {
+            display: none;
+        }
+
+        .summary-content.visible {
+            display: block;
+        }
+
+        .sum-header {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sum-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-1);
+            margin-bottom: 0.5rem;
+        }
+
+        .sum-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .sum-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 0.25rem 0.55rem;
+            border-radius: 6px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            color: var(--text-2);
+        }
+
+        .sum-badge.sentiment-positive {
+            background: var(--green-subtle);
+            color: var(--green);
+            border-color: transparent;
+        }
+
+        .sum-badge.sentiment-negative {
+            background: var(--red-subtle);
+            color: var(--red);
+            border-color: transparent;
+        }
+
+        .sum-badge.sentiment-neutral {
+            background: var(--blue-subtle);
+            color: var(--blue);
+            border-color: transparent;
+        }
+
+        .sum-badge.sentiment-mixed {
+            background: var(--amber-subtle);
+            color: var(--amber);
+            border-color: transparent;
+        }
+
+        .sum-attendees {
+            font-size: 0.82rem;
+            color: var(--text-2);
+            line-height: 1.5;
+        }
+
+        .sum-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .sum-section-title {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-3);
+            margin-bottom: 0.6rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .sum-text {
+            font-size: 0.88rem;
+            line-height: 1.65;
+            color: var(--text-1);
+        }
+
+        .sum-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .sum-list li {
+            font-size: 0.85rem;
+            color: var(--text-1);
+            padding: 0.4rem 0;
+            padding-left: 1.2rem;
+            position: relative;
+            line-height: 1.5;
+        }
+
+        .sum-list li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        /* Summary tables */
+        .sum-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+            margin-top: 0.35rem;
+        }
+
+        .sum-table th {
+            text-align: left;
+            padding: 0.5rem 0.65rem;
+            background: var(--bg-elevated);
+            color: var(--text-2);
+            font-weight: 600;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sum-table th:first-child {
+            border-radius: var(--radius-sm) 0 0 0;
+        }
+
+        .sum-table th:last-child {
+            border-radius: 0 var(--radius-sm) 0 0;
+        }
+
+        .sum-table td {
+            padding: 0.55rem 0.65rem;
+            color: var(--text-1);
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+
+        .sum-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .sum-table tr:hover td {
+            background: var(--bg-hover);
+        }
+
+        .priority-badge {
+            display: inline-block;
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .priority-high {
+            background: var(--red-subtle);
+            color: var(--red);
+        }
+
+        .priority-medium {
+            background: var(--amber-subtle);
+            color: var(--amber);
+        }
+
+        .priority-low {
+            background: var(--green-subtle);
+            color: var(--green);
+        }
+
+        .status-badge {
+            display: inline-block;
+            font-size: 0.68rem;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .status-pending {
+            background: var(--amber-subtle);
+            color: var(--amber);
+        }
+
+        .status-completed {
+            background: var(--green-subtle);
+            color: var(--green);
+        }
+
+        .status-inprogress {
+            background: var(--blue-subtle);
+            color: var(--blue);
+        }
+
+        /* Download bar */
+        .download-bar {
+            flex-shrink: 0;
+            padding: 0.6rem 0.75rem;
+            border-top: 1px solid var(--border);
+            display: none;
+            gap: 0.5rem;
+            background: var(--bg-elevated);
+        }
+
+        .download-bar.visible {
+            display: flex;
+        }
+
+        .dl-btn {
+            flex: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            padding: 0.5rem;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            transition: all var(--transition);
+            text-decoration: none;
+        }
+
+        .dl-btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .dl-btn.pdf {
+            background: linear-gradient(135deg, #ef4444, #f97316);
+        }
+
+        .dl-btn.excel {
+            background: linear-gradient(135deg, #22c55e, #3b82f6);
+        }
+
+        /* ================================================================
+           MODALS
+           ================================================================ */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            width: 90%;
+            max-width: 460px;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            background: transparent;
+            border: none;
+            color: var(--text-3);
+            font-size: 1.2rem;
+            padding: 0.25rem;
+            border-radius: 6px;
+            transition: all var(--transition);
+        }
+
+        .modal-close:hover {
+            background: var(--bg-hover);
+            color: var(--text-1);
+        }
+
+        .modal-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .modal-form-group {
+            margin-bottom: 1rem;
+        }
+
+        .modal-label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-2);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 0.35rem;
+        }
+
+        .modal-input,
+        .modal-select {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-1);
+            padding: 0.6rem 0.75rem;
+            font-size: 0.88rem;
+            outline: none;
+            transition: border-color var(--transition);
+        }
+
+        .modal-input:focus,
+        .modal-select:focus {
+            border-color: var(--border-focus);
+        }
+
+        .modal-select option {
+            background: var(--bg-elevated);
+            color: var(--text-1);
+        }
+
+        .modal-action-btn {
+            width: 100%;
+            padding: 0.7rem;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: white;
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            border: none;
+            border-radius: var(--radius-md);
+            margin-top: 0.5rem;
+            transition: all var(--transition);
+            box-shadow: var(--accent-glow);
+        }
+
+        .modal-action-btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .modal-action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Recording modal */
+        .record-ui {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 0;
+        }
+
+        .rec-btn-wrap {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .rec-ring {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--red-subtle);
+            animation: recPulse 1.5s infinite ease-in-out;
+            display: none;
+        }
+
+        .rec-ring.active {
+            display: block;
+        }
+
+        @keyframes recPulse {
+            0% {
+                transform: scale(0.9);
+                opacity: 0.8;
+            }
+
+            50% {
+                transform: scale(1.3);
+                opacity: 0.3;
+            }
+
+            100% {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+        }
+
+        .rec-btn {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: var(--red);
+            border: none;
+            color: white;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 8px 24px rgba(239, 68, 68, 0.35);
+        }
+
+        .rec-btn.recording {
+            border-radius: var(--radius-md);
+            transform: scale(0.9);
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.6);
+        }
+
+        .rec-timer {
+            font-size: 2rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-1);
+        }
+
+        .rec-status {
+            font-size: 0.85rem;
+            color: var(--text-2);
+        }
+
+        /* Upload area in modal */
+        .upload-area {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-md);
+            padding: 2rem 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all var(--transition);
+            background: var(--bg-input);
+            margin-bottom: 1rem;
+        }
+
+        .upload-area:hover,
+        .upload-area.dragover {
+            border-color: var(--accent);
+            background: var(--accent-subtle);
+        }
+
+        .upload-area .ua-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .upload-area .ua-text {
+            font-size: 0.88rem;
+            color: var(--text-1);
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .upload-area .ua-sub {
+            font-size: 0.78rem;
+            color: var(--text-3);
+        }
+
+        /* Processing overlay */
+        .processing-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .processing-overlay.visible {
+            display: flex;
+        }
+
+        .processing-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            padding: 2.5rem;
+            border-radius: var(--radius-xl);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: var(--accent-glow);
+            max-width: 380px;
+        }
+
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            border-top-color: var(--accent);
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .processing-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .processing-sub {
+            font-size: 0.85rem;
+            color: var(--text-2);
+            line-height: 1.5;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 0.75rem 1rem;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-1);
+            box-shadow: var(--shadow-md);
+            z-index: 300;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transform: translateY(120%);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .toast.visible {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            border-color: var(--green);
+        }
+
+        .toast.error {
+            border-color: var(--red);
+        }
+
+        /* Keywords pills */
+        .keyword-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+
+        .keyword-pill {
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            background: var(--accent-subtle);
+            color: var(--accent-hover);
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ==================== APP LAYOUT ==================== -->
+    <div class="app-layout">
+
+        <!-- ========== LEFT SIDEBAR ========== -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <span class="logo">AI VAPS</span>
+                <span class="version">v0.0.1</span>
+            </div>
+
+            <div class="sidebar-search">
+                <input type="text" id="sidebar-search" placeholder="🔍 Search meeting notes...">
+            </div>
+
+            <div class="meeting-list" id="meeting-list">
+                <div class="meeting-list-empty" id="meeting-list-empty">
+                    📂 No saved meetings yet.<br>Import audio or start recording.
+                </div>
+            </div>
+
+            <div class="sidebar-actions">
+                <button class="sidebar-action-btn" id="btn-start-recording" title="Record a meeting via microphone">
+                    <span class="sa-icon">🎙️</span> Start Recording
+                </button>
+                <button class="sidebar-action-btn" id="btn-import-audio" title="Import an audio file for transcription">
+                    <span class="sa-icon">📥</span> Import Audio
+                </button>
+                <button class="sidebar-action-btn" id="btn-settings"
+                    title="Configure STT engine, language, and preferences">
+                    <span class="sa-icon">⚙️</span> Settings
+                </button>
+                <button class="sidebar-action-btn" id="btn-about" title="About this application">
+                    <span class="sa-icon">ℹ️</span> About
+                </button>
+            </div>
+        </aside>
+
+        <!-- ========== MAIN CONTENT ========== -->
+        <main class="main-content">
+
+            <!-- ===== TRANSCRIPT PANEL ===== -->
+            <section class="transcript-panel">
+                <div class="panel-toolbar">
+                    <button class="tb-btn" id="tb-copy-transcript" title="Copy transcript text">📋 Copy</button>
+                    <button class="tb-btn" id="tb-recording-indicator" style="display:none;"
+                        title="Recording in progress">
+                        🔴 Recording
+                    </button>
+                    <div class="tb-divider"></div>
+                    <div class="transcript-toggle" id="transcript-toggle">
+                        <button class="tt-btn active" id="tt-original">Original</button>
+                        <button class="tt-btn" id="tt-english">English Translation</button>
+                    </div>
+                    <div class="tb-spacer"></div>
+                    <span id="tb-transcript-meta"
+                        style="font-size:0.72rem; color: var(--text-3); font-weight: 500;"></span>
+                </div>
+
+                <div class="transcript-body" id="transcript-body">
+                    <div class="transcript-placeholder" id="transcript-placeholder">
+                        <span class="tp-icon">📝</span>
+                        <span class="tp-title">No transcript loaded</span>
+                        <span class="tp-sub">Select a meeting from the sidebar, import audio, or start recording to
+                            begin.</span>
+                    </div>
+                    <div class="transcript-text" id="transcript-text" style="display:none;"></div>
+                </div>
+
+                <div class="context-bar">
+                    <input type="text" id="context-input"
+                        placeholder="Add context for AI summary. For example: people involved, meeting objective, etc...">
+                </div>
+            </section>
+
+            <!-- ===== SUMMARY PANEL ===== -->
+            <section class="summary-panel">
+                <div class="summary-toolbar">
+                    <button class="regen-btn" id="btn-regenerate" disabled
+                        title="Generate or regenerate the AI summary">
+                        ✨ Regenerate Summary
+                    </button>
+                    <div class="tb-divider"></div>
+                    <select class="tb-select" id="select-ai-provider" title="Select AI provider for summary generation">
+                        <!-- Populated dynamically -->
+                    </select>
+                    <div class="tb-spacer"></div>
+                    <button class="tb-btn" id="tb-save-summary" title="Save summary as text">💾 Save</button>
+                    <button class="tb-btn" id="tb-copy-summary" title="Copy summary text">📋 Copy</button>
+                </div>
+
+                <div class="summary-body" id="summary-body">
+                    <div class="summary-placeholder" id="summary-placeholder">
+                        <span class="sp-icon">🧠</span>
+                        <span class="sp-title">AI Summary</span>
+                        <span class="sp-sub">Load a transcript, then click <strong>Regenerate Summary</strong> to
+                            generate an AI-powered meeting analysis.</span>
+                    </div>
+
+                    <div class="summary-content" id="summary-content">
+                        <!-- Header -->
+                        <div class="sum-header">
+                            <div class="sum-title" id="sum-title">Meeting Summary</div>
+                            <div class="sum-meta">
+                                <span class="sum-badge" id="sum-date">📅 —</span>
+                                <span class="sum-badge" id="sum-type">📋 —</span>
+                                <span class="sum-badge" id="sum-sentiment">—</span>
+                                <span class="sum-badge" id="sum-duration">⏱ —</span>
+                                <span class="sum-badge" id="sum-provider">🤖 —</span>
+                            </div>
+                            <div class="sum-attendees" id="sum-attendees"></div>
+                        </div>
+
+                        <!-- Executive Summary -->
+                        <div class="sum-section">
+                            <div class="sum-section-title">📄 Executive Summary</div>
+                            <div class="sum-text" id="sum-executive-summary"></div>
+                        </div>
+
+                        <!-- Topics -->
+                        <div class="sum-section" id="sec-topics">
+                            <div class="sum-section-title">💬 Discussion Topics</div>
+                            <ul class="sum-list" id="sum-topics"></ul>
+                        </div>
+
+                        <!-- Decisions -->
+                        <div class="sum-section" id="sec-decisions">
+                            <div class="sum-section-title">✅ Decisions Made</div>
+                            <ul class="sum-list" id="sum-decisions"></ul>
+                        </div>
+
+                        <!-- Action Items -->
+                        <div class="sum-section" id="sec-actions">
+                            <div class="sum-section-title">📌 Action Items</div>
+                            <table class="sum-table" id="sum-actions-table">
+                                <thead>
+                                    <tr>
+                                        <th>Task</th>
+                                        <th>Assigned To</th>
+                                        <th>Priority</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sum-actions-tbody"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- Risks / Blockers -->
+                        <div class="sum-section" id="sec-risks">
+                            <div class="sum-section-title">⚠️ Risks & Blockers</div>
+                            <ul class="sum-list" id="sum-risks"></ul>
+                        </div>
+
+                        <!-- Follow-ups -->
+                        <div class="sum-section" id="sec-followups">
+                            <div class="sum-section-title">🔄 Follow-ups</div>
+                            <ul class="sum-list" id="sum-followups"></ul>
+                        </div>
+
+                        <!-- Keywords -->
+                        <div class="sum-section" id="sec-keywords">
+                            <div class="sum-section-title">🏷️ Keywords</div>
+                            <div class="keyword-pills" id="sum-keywords"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="download-bar" id="download-bar">
+                    <a class="dl-btn pdf" id="dl-pdf" href="#" target="_blank" download>📥 PDF Report</a>
+                    <a class="dl-btn excel" id="dl-excel" href="#" target="_blank" download>📥 Excel Tracker</a>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- ==================== MODALS ==================== -->
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="modal-settings">
+        <div class="modal">
+            <button class="modal-close" id="close-settings">✕</button>
+            <div class="modal-title">⚙️ Settings</div>
+
+            <div class="modal-form-group">
+                <label class="modal-label" for="setting-title">Meeting Title</label>
+                <input class="modal-input" type="text" id="setting-title" value="Meeting"
+                    placeholder="Enter meeting title...">
+            </div>
+
+            <div class="modal-form-group">
+                <label class="modal-label" for="setting-engine">STT Engine</label>
+                <select class="modal-select" id="setting-engine"></select>
+            </div>
+
+            <div class="modal-form-group">
+                <label class="modal-label" for="setting-language">Language</label>
+                <select class="modal-select" id="setting-language"></select>
+            </div>
+
+            <button class="modal-action-btn" id="save-settings">Save Settings</button>
+        </div>
+    </div>
+
+    <!-- Import Audio Modal -->
+    <div class="modal-overlay" id="modal-import">
+        <div class="modal">
+            <button class="modal-close" id="close-import">✕</button>
+            <div class="modal-title">📥 Import Audio</div>
+
+            <div class="upload-area" id="upload-area">
+                <input type="file" id="audio-file-input" style="display:none;"
+                    accept=".wav,.mp3,.m4a,.aac,.ogg,.flac,.webm,.mp4">
+                <span class="ua-icon">📁</span>
+                <div class="ua-text" id="upload-text">Click to choose or drag & drop audio file</div>
+                <div class="ua-sub">Supports MP3, WAV, M4A, FLAC, OGG, WebM, MP4</div>
+            </div>
+
+            <div class="modal-form-group" style="margin-top: 1rem;">
+                <label class="modal-label" for="import-engine">STT Engine</label>
+                <select class="modal-select" id="import-engine"></select>
+            </div>
+
+            <div class="modal-form-group">
+                <label class="modal-label" for="import-language">Language</label>
+                <select class="modal-select" id="import-language"></select>
+            </div>
+
+            <div class="modal-form-group" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem;">
+                <input type="checkbox" id="import-auto-summary" checked style="width: 16px; height: 16px; accent-color: var(--accent);">
+                <label class="modal-label" for="import-auto-summary" style="margin-bottom: 0; cursor: pointer; text-transform: none; font-size: 0.85rem; font-weight: 600;">Generate AI Summary</label>
+            </div>
+
+            <div class="modal-form-group" id="import-summary-provider-group" style="margin-top: 0.5rem;">
+                <label class="modal-label" for="import-summary-provider">AI Summary Provider</label>
+                <select class="modal-select" id="import-summary-provider"></select>
+            </div>
+
+            <button class="modal-action-btn" id="btn-start-transcribe" disabled style="margin-top: 1.25rem;">▶️ Start Transcription</button>
+        </div>
+    </div>
+
+    <!-- Recording Modal -->
+    <div class="modal-overlay" id="modal-record">
+        <div class="modal">
+            <button class="modal-close" id="close-record">✕</button>
+            <div class="modal-title">🎙️ Record Meeting</div>
+
+            <div class="record-ui">
+                <div class="rec-btn-wrap">
+                    <div class="rec-ring" id="rec-ring"></div>
+                    <button class="rec-btn" id="rec-btn">⏺️</button>
+                </div>
+                <div class="rec-timer" id="rec-timer">00:00</div>
+                <div class="rec-status" id="rec-status">Click the button to start recording</div>
+            </div>
+
+            <div class="modal-form-group" style="margin-top: 1rem;">
+                <label class="modal-label" for="record-engine">STT Engine</label>
+                <select class="modal-select" id="record-engine"></select>
+            </div>
+
+            <div class="modal-form-group">
+                <label class="modal-label" for="record-language">Language</label>
+                <select class="modal-select" id="record-language"></select>
+            </div>
+
+            <div class="modal-form-group" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem;">
+                <input type="checkbox" id="record-auto-summary" checked style="width: 16px; height: 16px; accent-color: var(--accent);">
+                <label class="modal-label" for="record-auto-summary" style="margin-bottom: 0; cursor: pointer; text-transform: none; font-size: 0.85rem; font-weight: 600;">Generate AI Summary</label>
+            </div>
+
+            <div class="modal-form-group" id="record-summary-provider-group" style="margin-top: 0.5rem;">
+                <label class="modal-label" for="record-summary-provider">AI Summary Provider</label>
+                <select class="modal-select" id="record-summary-provider"></select>
+            </div>
+
+            <button class="modal-action-btn" id="btn-transcribe-recording" disabled style="margin-top: 1.25rem;">▶️ Transcribe Recording</button>
+        </div>
+    </div>
+
+    <!-- About Modal -->
+    <div class="modal-overlay" id="modal-about">
+        <div class="modal">
+            <button class="modal-close" id="close-about">✕</button>
+            <div class="modal-title">ℹ️ About Meetily</div>
+            <div style="font-size: 0.88rem; color: var(--text-2); line-height: 1.6;">
+                <p><strong style="color: var(--text-1);">AI Meeting Minutes (Meetily)</strong> — Record, transcribe, and
+                    summarize meetings with AI-powered intelligence.</p>
+                <br>
+                <p>Supports <strong>Deepgram</strong> and <strong>NVIDIA NIM</strong> for speech-to-text, and
+                    <strong>Groq</strong>, <strong>Gemini</strong>, <strong>NVIDIA</strong>, <strong>Ollama</strong> for
+                    AI analysis.
+                </p>
+                <br>
+                <p style="font-size: 0.78rem; color: var(--text-3);">Built by VAPS TECHNOSOFT PVT. LTD.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Processing Overlay -->
+    <div class="processing-overlay" id="processing-overlay">
+        <div class="processing-card">
+            <div class="spinner"></div>
+            <div class="processing-title" id="processing-title">Processing...</div>
+            <div class="processing-sub" id="processing-sub">Please wait while we process your request.</div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+
+    <!-- ==================== JAVASCRIPT ==================== -->
+    <script>
+        (function () {
+            'use strict';
+
+            // ========================================
+            // DOM References
+            // ========================================
+            const $ = id => document.getElementById(id);
+
+            // Sidebar
+            const sidebarSearch = $('sidebar-search');
+            const meetingList = $('meeting-list');
+            const meetingListEmpty = $('meeting-list-empty');
+
+            // Transcript panel
+            const transcriptBody = $('transcript-body');
+            const transcriptPlaceholder = $('transcript-placeholder');
+            const transcriptText = $('transcript-text');
+            const transcriptToggle = $('transcript-toggle');
+            const ttOriginal = $('tt-original');
+            const ttEnglish = $('tt-english');
+            const tbTranscriptMeta = $('tb-transcript-meta');
+            const contextInput = $('context-input');
+
+            // Summary panel
+            const btnRegenerate = $('btn-regenerate');
+            const selectAiProvider = $('select-ai-provider');
+            const summaryPlaceholder = $('summary-placeholder');
+            const summaryContent = $('summary-content');
+            const downloadBar = $('download-bar');
+            const dlPdf = $('dl-pdf');
+            const dlExcel = $('dl-excel');
+
+            // Summary content elements
+            const sumTitle = $('sum-title');
+            const sumDate = $('sum-date');
+            const sumType = $('sum-type');
+            const sumSentiment = $('sum-sentiment');
+            const sumDuration = $('sum-duration');
+            const sumProvider = $('sum-provider');
+            const sumAttendees = $('sum-attendees');
+            const sumExecSummary = $('sum-executive-summary');
+            const sumTopics = $('sum-topics');
+            const sumDecisions = $('sum-decisions');
+            const sumActionsTbody = $('sum-actions-tbody');
+            const sumRisks = $('sum-risks');
+            const sumFollowups = $('sum-followups');
+            const sumKeywords = $('sum-keywords');
+
+            // Modals
+            const modalSettings = $('modal-settings');
+            const modalImport = $('modal-import');
+            const modalRecord = $('modal-record');
+            const modalAbout = $('modal-about');
+            const processingOverlay = $('processing-overlay');
+            const processingTitle = $('processing-title');
+            const processingSub = $('processing-sub');
+
+            // Settings
+            const settingTitle = $('setting-title');
+            const settingEngine = $('setting-engine');
+            const settingLanguage = $('setting-language');
+
+            // Import modal fields
+            const importEngine = $('import-engine');
+            const importLanguage = $('import-language');
+            const importAutoSummary = $('import-auto-summary');
+            const importSummaryProvider = $('import-summary-provider');
+            const importSummaryProviderGroup = $('import-summary-provider-group');
+
+            // Record modal fields
+            const recordEngine = $('record-engine');
+            const recordLanguage = $('record-language');
+            const recordAutoSummary = $('record-auto-summary');
+            const recordSummaryProvider = $('record-summary-provider');
+            const recordSummaryProviderGroup = $('record-summary-provider-group');
+
+            // Toast
+            const toastEl = $('toast');
+
+            // Import
+            const uploadArea = $('upload-area');
+            const audioFileInput = $('audio-file-input');
+            const uploadText = $('upload-text');
+            const btnStartTranscribe = $('btn-start-transcribe');
+
+            // Record
+            const recRing = $('rec-ring');
+            const recBtn = $('rec-btn');
+            const recTimer = $('rec-timer');
+            const recStatus = $('rec-status');
+            const btnTranscribeRecording = $('btn-transcribe-recording');
+            const tbRecordingIndicator = $('tb-recording-indicator');
+
+            // ========================================
+            // Application State
+            // ========================================
+            let state = {
+                meetings: [],
+                activeMeetingFilename: null,
+                rawTranscript: '',
+                translatedTranscript: '',
+                currentLanguage: 'English',
+                selectedFile: null,
+
+                // Recording
+                isRecording: false,
+                mediaRecorder: null,
+                audioChunks: [],
+                recordInterval: null,
+                recordSeconds: 0,
+                recordingBlob: null,
+
+                // Settings
+                meetingTitle: 'Meeting',
+                sttEngine: '',
+                language: 'English',
+
+                // AI
+                aiProvider: '',
+                aiProviderDefault: '',
+                pdfUrl: '',
+                excelUrl: '',
+            };
+
+            // ========================================
+            // Toast Helper
+            // ========================================
+            let toastTimeout = null;
+            function showToast(message, type = 'success') {
+                toastEl.className = `toast ${type}`;
+                toastEl.textContent = (type === 'success' ? '✅ ' : type === 'error' ? '❌ ' : 'ℹ️ ') + message;
+                toastEl.classList.add('visible');
+                clearTimeout(toastTimeout);
+                toastTimeout = setTimeout(() => toastEl.classList.remove('visible'), 3000);
+            }
+
+            // ========================================
+            // Processing overlay helpers
+            // ========================================
+            function showProcessing(title, sub) {
+                processingTitle.textContent = title;
+                processingSub.textContent = sub;
+                processingOverlay.classList.add('visible');
+            }
+            function hideProcessing() {
+                processingOverlay.classList.remove('visible');
+            }
+
+            // ========================================
+            // Modal Helpers
+            // ========================================
+            function openModal(el) { el.classList.add('visible'); }
+            function closeModal(el) { el.classList.remove('visible'); }
+
+            $('btn-settings').addEventListener('click', () => openModal(modalSettings));
+            $('close-settings').addEventListener('click', () => closeModal(modalSettings));
+            $('save-settings').addEventListener('click', () => {
+                state.meetingTitle = settingTitle.value || 'Meeting';
+                state.sttEngine = settingEngine.value;
+                state.language = settingLanguage.value;
+                closeModal(modalSettings);
+                showToast('Settings saved');
+            });
+
+            $('btn-import-audio').addEventListener('click', () => {
+                state.selectedFile = null;
+                uploadText.textContent = 'Click to choose or drag & drop audio file';
+                btnStartTranscribe.disabled = true;
+                openModal(modalImport);
+            });
+            $('close-import').addEventListener('click', () => closeModal(modalImport));
+
+            $('btn-start-recording').addEventListener('click', () => openModal(modalRecord));
+            $('close-record').addEventListener('click', () => {
+                if (state.isRecording) stopRecording();
+                closeModal(modalRecord);
+            });
+
+            $('btn-about').addEventListener('click', () => openModal(modalAbout));
+            $('close-about').addEventListener('click', () => closeModal(modalAbout));
+
+            // Close modals on overlay click
+            [modalSettings, modalImport, modalRecord, modalAbout].forEach(m => {
+                m.addEventListener('click', e => {
+                    if (e.target === m) closeModal(m);
+                });
+            });
+
+            // ========================================
+            // Initialization — Load Config Options
+            // ========================================
+            async function initApp() {
+                try {
+                    // Load STT engines
+                    const engRes = await fetch('/api/engines');
+                    const engData = await engRes.json();
+                    const enginesHtml = engData.engines.map(e =>
+                        `<option value="${e}">${e}</option>`
+                    ).join('');
+                    settingEngine.innerHTML = enginesHtml;
+                    importEngine.innerHTML = enginesHtml;
+                    recordEngine.innerHTML = enginesHtml;
+                    state.sttEngine = engData.engines[0] || '';
+
+                    // Load languages
+                    const langRes = await fetch('/api/languages');
+                    const langData = await langRes.json();
+                    const languagesHtml = langData.languages.map(l =>
+                        `<option value="${l}" ${l === 'English' ? 'selected' : ''}>${l}</option>`
+                    ).join('');
+                    settingLanguage.innerHTML = languagesHtml;
+                    importLanguage.innerHTML = languagesHtml;
+                    recordLanguage.innerHTML = languagesHtml;
+
+                    // Load AI providers
+                    const aiRes = await fetch('/api/ai-providers');
+                    const aiData = await aiRes.json();
+                    const providersHtml = aiData.providers
+                        .map(p => `<option value="${p.name}" ${!p.configured ? 'disabled' : ''} ${p.name === aiData.default ? 'selected' : ''}>${p.display_name}${!p.configured ? ' (Not Configured)' : ''}</option>`)
+                        .join('');
+                    selectAiProvider.innerHTML = providersHtml;
+                    importSummaryProvider.innerHTML = providersHtml;
+                    recordSummaryProvider.innerHTML = providersHtml;
+                    state.aiProvider = aiData.default;
+                    state.aiProviderDefault = aiData.default;
+
+                    // Setup modal checkbox listeners
+                    importAutoSummary.addEventListener('change', e => {
+                        importSummaryProviderGroup.style.display = e.target.checked ? 'block' : 'none';
+                    });
+                    recordAutoSummary.addEventListener('change', e => {
+                        recordSummaryProviderGroup.style.display = e.target.checked ? 'block' : 'none';
+                    });
+
+                    // Load saved meetings
+                    await loadMeetings();
+                } catch (err) {
+                    console.error('Init failed:', err);
+                    showToast('Failed to connect to backend', 'error');
+                }
+            }
+
+            // ========================================
+            // Sidebar — Meeting List
+            // ========================================
+            async function loadMeetings() {
+                try {
+                    const res = await fetch('/api/transcripts');
+                    const data = await res.json();
+                    state.meetings = data.transcripts || [];
+                    renderMeetingList();
+                } catch (err) {
+                    console.error('Failed to load meetings:', err);
+                }
+            }
+
+            function renderMeetingList(filter = '') {
+                const filtered = filter
+                    ? state.meetings.filter(m => m.title.toLowerCase().includes(filter.toLowerCase()))
+                    : state.meetings;
+
+                if (filtered.length === 0) {
+                    meetingListEmpty.style.display = 'block';
+                    // Clear existing cards
+                    meetingList.querySelectorAll('.meeting-card').forEach(c => c.remove());
+                    return;
+                }
+
+                meetingListEmpty.style.display = 'none';
+                const fragment = document.createDocumentFragment();
+
+                filtered.forEach(m => {
+                    const card = document.createElement('div');
+                    card.className = 'meeting-card' + (m.filename === state.activeMeetingFilename ? ' active' : '');
+                    card.dataset.filename = m.filename;
+                    card.dataset.title = m.title;
+                    card.innerHTML = `
+                <div class="mc-title">${escapeHtml(m.title)}</div>
+                <div class="mc-meta">
+                    <span>📅 ${m.date}</span>
+                    <span>💾 ${m.size_kb} KB</span>
+                </div>
+            `;
+                    card.addEventListener('click', () => selectMeeting(m.filename, m.title));
+                    fragment.appendChild(card);
+                });
+
+                // Remove old cards
+                meetingList.querySelectorAll('.meeting-card').forEach(c => c.remove());
+                meetingList.appendChild(fragment);
+            }
+
+            sidebarSearch.addEventListener('input', e => {
+                renderMeetingList(e.target.value);
+            });
+
+            // ========================================
+            // Select Meeting from Sidebar
+            // ========================================
+            async function selectMeeting(filename, title) {
+                state.activeMeetingFilename = filename;
+                settingTitle.value = title;
+                state.meetingTitle = title;
+
+                // Highlight in sidebar
+                meetingList.querySelectorAll('.meeting-card').forEach(c => {
+                    c.classList.toggle('active', c.dataset.filename === filename);
+                });
+
+                // Fetch transcript content
+                try {
+                    const res = await fetch(`/api/transcripts/${filename}`);
+                    if (!res.ok) throw new Error('Could not load transcript');
+                    const data = await res.json();
+
+                    state.rawTranscript = data.text || '';
+                    state.translatedTranscript = '';
+                    state.currentLanguage = 'English';
+
+                    showTranscript(state.rawTranscript);
+                    tbTranscriptMeta.textContent = `Saved • ${title}`;
+                    transcriptToggle.classList.remove('visible');
+                    ttOriginal.classList.add('active');
+                    ttEnglish.classList.remove('active');
+
+                    // Reset summary
+                    resetSummary();
+                    btnRegenerate.disabled = false;
+
+                } catch (err) {
+                    showToast(`Failed to load transcript: ${err.message}`, 'error');
+                }
+            }
+
+            // ========================================
+            // Transcript Display
+            // ========================================
+            function showTranscript(text) {
+                transcriptPlaceholder.style.display = 'none';
+                transcriptText.style.display = 'block';
+                transcriptText.textContent = text || '(Empty transcript)';
+            }
+
+            function resetTranscript() {
+                transcriptPlaceholder.style.display = 'flex';
+                transcriptText.style.display = 'none';
+                transcriptText.textContent = '';
+                tbTranscriptMeta.textContent = '';
+                transcriptToggle.classList.remove('visible');
+            }
+
+            // Toggle original / english
+            ttOriginal.addEventListener('click', () => {
+                transcriptText.textContent = state.rawTranscript;
+                ttOriginal.classList.add('active');
+                ttEnglish.classList.remove('active');
+            });
+
+            ttEnglish.addEventListener('click', () => {
+                transcriptText.textContent = state.translatedTranscript || state.rawTranscript;
+                ttEnglish.classList.add('active');
+                ttOriginal.classList.remove('active');
+            });
+
+            // Copy transcript
+            $('tb-copy-transcript').addEventListener('click', () => {
+                const text = transcriptText.textContent;
+                if (!text) return;
+                navigator.clipboard.writeText(text).then(() => showToast('Transcript copied'));
+            });
+
+            // ========================================
+            // Summary Display
+            // ========================================
+            function resetSummary() {
+                summaryPlaceholder.style.display = 'flex';
+                summaryContent.classList.remove('visible');
+                downloadBar.classList.remove('visible');
+                state.pdfUrl = '';
+                state.excelUrl = '';
+                dlPdf.href = '#';
+                dlExcel.href = '#';
+            }
+
+            async function downloadReport(url, fallbackName) {
+                if (!url || url === '#') {
+                    showToast('Report is not ready yet', 'error');
+                    return;
+                }
+
+                // Create a temporary anchor pointing directly to the report URL to trigger
+                // the native browser download, which respects the server's Content-Disposition filename header.
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = decodeURIComponent(url.split('/').pop() || fallbackName);
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            }
+
+            function renderSummary(data, providerUsed) {
+                summaryPlaceholder.style.display = 'none';
+                summaryContent.classList.add('visible');
+
+                const s = data.summary || data;
+
+                sumTitle.textContent = s.meeting_title || state.meetingTitle || 'Meeting Summary';
+                sumDate.textContent = `📅 ${new Date().toLocaleDateString()}`;
+                sumType.textContent = `📋 ${s.meeting_type || 'General'}`;
+                sumDuration.textContent = `⏱ ${s.meeting_duration || 'Unknown'}`;
+                sumProvider.textContent = `🤖 ${providerUsed || 'auto'}`;
+
+                // Sentiment badge
+                const sent = (s.overall_sentiment || 'Neutral').toLowerCase();
+                const sentClass = sent === 'positive' ? 'sentiment-positive'
+                    : sent === 'negative' ? 'sentiment-negative'
+                        : sent === 'mixed' ? 'sentiment-mixed'
+                            : 'sentiment-neutral';
+                sumSentiment.className = `sum-badge ${sentClass}`;
+                sumSentiment.textContent = `${sent === 'positive' ? '😊' : sent === 'negative' ? '😟' : sent === 'mixed' ? '🤔' : '😐'} ${s.overall_sentiment || 'Neutral'}`;
+
+                // Attendees
+                const participants = s.participants || [];
+                sumAttendees.textContent = participants.length > 0
+                    ? `Attendees: ${participants.join(', ')}`
+                    : '';
+
+                // Executive summary
+                sumExecSummary.textContent = s.executive_summary || 'No summary available.';
+
+                // Topics
+                renderList(sumTopics, s.topics, 'sec-topics');
+
+                // Decisions
+                renderList(sumDecisions, s.decisions, 'sec-decisions');
+
+                // Action Items table
+                const actions = s.action_items || [];
+                if (actions.length > 0) {
+                    $('sec-actions').style.display = 'block';
+                    sumActionsTbody.innerHTML = actions.map(a => `
+                <tr>
+                    <td>${escapeHtml(a.task)}</td>
+                    <td style="color: var(--accent-hover); font-weight: 600;">${escapeHtml((a.status || '').toLowerCase() === 'information' ? 'Information' : (a.owner || 'Information'))}</td>
+                    <td><span class="priority-badge priority-${(a.priority || 'medium').toLowerCase()}">${a.priority || 'Medium'}</span></td>
+                    <td><span class="status-badge status-${(a.status || 'pending').toLowerCase().replace(/\s/g, '')}">${a.status || 'Pending'}</span></td>
+                </tr>
+            `).join('');
+                } else {
+                    $('sec-actions').style.display = 'none';
+                }
+
+                // Risks
+                renderList(sumRisks, s.risks, 'sec-risks');
+
+                // Follow-ups
+                renderList(sumFollowups, s.followups, 'sec-followups');
+
+                // Keywords
+                const keywords = s.keywords || [];
+                if (keywords.length > 0) {
+                    $('sec-keywords').style.display = 'block';
+                    sumKeywords.innerHTML = keywords.map(k => `<span class="keyword-pill">${escapeHtml(k)}</span>`).join('');
+                } else {
+                    $('sec-keywords').style.display = 'none';
+                }
+
+                // Downloads
+                if (data.pdf_url && data.excel_url) {
+                    state.pdfUrl = data.pdf_url;
+                    state.excelUrl = data.excel_url;
+                    dlPdf.href = data.pdf_url;
+                    dlExcel.href = data.excel_url;
+
+                    // Set download attribute to enforce proper filename and extension
+                    const pdfName = data.pdf_url.split('/').pop();
+                    const excelName = data.excel_url.split('/').pop();
+                    dlPdf.setAttribute('download', pdfName);
+                    dlExcel.setAttribute('download', excelName);
+
+                    downloadBar.classList.add('visible');
+                }
+            }
+
+            function renderList(ul, items, sectionId) {
+                if (items && items.length > 0) {
+                    $(sectionId).style.display = 'block';
+                    ul.innerHTML = items.map(item => `<li>${escapeHtml(item)}</li>`).join('');
+                } else {
+                    $(sectionId).style.display = 'none';
+                }
+            }
+
+            // Copy summary
+            $('tb-copy-summary').addEventListener('click', () => {
+                const content = summaryContent.innerText;
+                if (!content) return;
+                navigator.clipboard.writeText(content).then(() => showToast('Summary copied'));
+            });
+
+            // Save summary as text file
+            $('tb-save-summary').addEventListener('click', () => {
+                const content = summaryContent.innerText;
+                if (!content) return;
+                const blob = new Blob([content], { type: 'text/plain' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `${state.meetingTitle || 'meeting'}_summary.txt`;
+                a.click();
+                URL.revokeObjectURL(a.href);
+                showToast('Summary saved');
+            });
+
+            dlPdf.addEventListener('click', e => {
+                e.preventDefault();
+                downloadReport(state.pdfUrl || dlPdf.getAttribute('href'), 'meeting-report.pdf');
+            });
+
+            dlExcel.addEventListener('click', e => {
+                e.preventDefault();
+                downloadReport(state.excelUrl || dlExcel.getAttribute('href'), 'action-tracker.xlsx');
+            });
+
+            // AI provider change
+            selectAiProvider.addEventListener('change', e => {
+                state.aiProvider = e.target.value;
+            });
+
+            // ========================================
+            // Regenerate Summary (AI Analysis)
+            // ========================================
+            btnRegenerate.addEventListener('click', async () => {
+                const transcript = state.rawTranscript;
+                if (!transcript || !transcript.trim()) {
+                    showToast('No transcript to analyze', 'error');
+                    return;
+                }
+
+                btnRegenerate.disabled = true;
+                showProcessing('Generating Meeting Summary', 'AI is extracting topics, decisions, action items, and compiling reports. This may take a moment...');
+
+                try {
+                    const body = {
+                        title: state.meetingTitle || 'Meeting',
+                        transcript: transcript,
+                        language: state.currentLanguage || 'English',
+                        ai_provider: state.aiProvider || null,
+                        context: contextInput.value || null,
+                    };
+
+                    const res = await fetch('/api/analyze', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body),
+                    });
+
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.detail || 'AI analysis failed');
+                    }
+
+                    const result = await res.json();
+
+                    // If translated text came back, update state and show toggle
+                    if (result.translated_text) {
+                        state.translatedTranscript = result.translated_text;
+                        transcriptToggle.classList.add('visible');
+                        // Switch to English view
+                        transcriptText.textContent = state.translatedTranscript;
+                        ttEnglish.classList.add('active');
+                        ttOriginal.classList.remove('active');
+                    }
+
+                    renderSummary(result, state.aiProvider);
+                    showToast('Summary generated successfully');
+
+                } catch (err) {
+                    showToast(`Analysis failed: ${err.message}`, 'error');
+                } finally {
+                    btnRegenerate.disabled = false;
+                    hideProcessing();
+                }
+            });
+
+            // ========================================
+            // File Import — Upload & Transcribe
+            // ========================================
+            uploadArea.addEventListener('click', () => audioFileInput.click());
+
+            uploadArea.addEventListener('dragover', e => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', e => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) handleFileSelected(e.dataTransfer.files[0]);
+            });
+
+            audioFileInput.addEventListener('change', e => {
+                if (e.target.files.length > 0) handleFileSelected(e.target.files[0]);
+            });
+
+            function handleFileSelected(file) {
+                state.selectedFile = file;
+                uploadText.textContent = `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`;
+                btnStartTranscribe.disabled = false;
+            }
+
+            btnStartTranscribe.addEventListener('click', async () => {
+                if (!state.selectedFile) return;
+                closeModal(modalImport);
+                const engine = importEngine.value;
+                const language = importLanguage.value;
+                const autoSummary = importAutoSummary.checked;
+                const summaryProvider = importSummaryProvider.value;
+                await runTranscription(state.selectedFile, state.selectedFile.name, engine, language, autoSummary, summaryProvider);
+            });
+
+            // ========================================
+            // Recording
+            // ========================================
+            recBtn.addEventListener('click', async () => {
+                if (state.isRecording) {
+                    stopRecording();
+                } else {
+                    await startRecording();
+                }
+            });
+
+            async function startRecording() {
+                state.audioChunks = [];
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    let mimeType = 'audio/webm';
+                    if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/ogg';
+                    if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'audio/wav';
+
+                    state.mediaRecorder = new MediaRecorder(stream);
+                    state.mediaRecorder.ondataavailable = e => {
+                        if (e.data.size > 0) state.audioChunks.push(e.data);
+                    };
+                    state.mediaRecorder.onstop = () => {
+                        state.recordingBlob = new Blob(state.audioChunks, { type: state.mediaRecorder.mimeType });
+                        btnTranscribeRecording.disabled = false;
+                        recStatus.textContent = 'Recording captured. Click Transcribe to proceed.';
+                    };
+
+                    state.mediaRecorder.start(250);
+                    state.isRecording = true;
+                    recBtn.textContent = '⏹️';
+                    recBtn.classList.add('recording');
+                    recRing.classList.add('active');
+                    tbRecordingIndicator.style.display = 'inline-flex';
+                    recStatus.textContent = 'Recording... Click to stop.';
+
+                    state.recordSeconds = 0;
+                    recTimer.textContent = '00:00';
+                    state.recordInterval = setInterval(() => {
+                        state.recordSeconds++;
+                        const m = String(Math.floor(state.recordSeconds / 60)).padStart(2, '0');
+                        const s = String(state.recordSeconds % 60).padStart(2, '0');
+                        recTimer.textContent = `${m}:${s}`;
+                    }, 1000);
+                } catch (err) {
+                    showToast(`Microphone error: ${err.message}`, 'error');
+                }
+            }
+
+            function stopRecording() {
+                if (!state.isRecording) return;
+                state.mediaRecorder.stop();
+                state.mediaRecorder.stream.getTracks().forEach(t => t.stop());
+                clearInterval(state.recordInterval);
+                state.isRecording = false;
+                recBtn.textContent = '⏺️';
+                recBtn.classList.remove('recording');
+                recRing.classList.remove('active');
+                tbRecordingIndicator.style.display = 'none';
+            }
+
+            btnTranscribeRecording.addEventListener('click', async () => {
+                if (!state.recordingBlob) return;
+                closeModal(modalRecord);
+                const ext = state.recordingBlob.type.includes('ogg') ? '.ogg' : '.webm';
+                const filename = `recorded_audio${ext}`;
+                const engine = recordEngine.value;
+                const language = recordLanguage.value;
+                const autoSummary = recordAutoSummary.checked;
+                const summaryProvider = recordSummaryProvider.value;
+                await runTranscription(state.recordingBlob, filename, engine, language, autoSummary, summaryProvider);
+            });
+
+            // ========================================
+            // Core: Run Transcription Pipeline
+            // ========================================
+            async function runTranscription(payload, filename, engine, language, autoSummary, summaryProvider) {
+                showProcessing('Transcribing Audio', 'Uploading and converting audio file for speech-to-text processing...');
+
+                const formData = new FormData();
+                formData.append('file', payload, filename);
+                formData.append('engine', engine);
+                formData.append('language', language);
+                formData.append('title', state.meetingTitle || settingTitle.value || 'Meeting');
+
+                try {
+                    const res = await fetch('/api/transcribe', {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.detail || 'Transcription failed');
+                    }
+
+                    const result = await res.json();
+
+                    // Store transcript
+                    state.rawTranscript = result.text || '';
+                    state.translatedTranscript = '';
+                    state.currentLanguage = result.language || 'English';
+
+                    // Show transcript in left panel
+                    showTranscript(state.rawTranscript);
+                    tbTranscriptMeta.textContent = `${result.engine} • ${result.language} • ${result.duration_seconds?.toFixed(1) || '?'}s`;
+                    transcriptToggle.classList.remove('visible');
+                    ttOriginal.classList.add('active');
+                    ttEnglish.classList.remove('active');
+
+                    // Reset summary panel, enable regenerate
+                    resetSummary();
+                    btnRegenerate.disabled = false;
+
+                    // Set state AI provider to the selected one
+                    if (summaryProvider) {
+                        state.aiProvider = summaryProvider;
+                        selectAiProvider.value = summaryProvider;
+                    }
+
+                    // Refresh sidebar
+                    await loadMeetings();
+
+                    showToast(`Transcription complete (${result.duration_seconds?.toFixed(1)}s)`);
+
+                    // Auto-trigger AI summary
+                    if (autoSummary) {
+                        btnRegenerate.click();
+                    }
+
+                } catch (err) {
+                    showToast(`Transcription failed: ${err.message}`, 'error');
+                } finally {
+                    hideProcessing();
+                }
+            }
+
+            // ========================================
+            // Utility
+            // ========================================
+            function escapeHtml(str) {
+                const d = document.createElement('div');
+                d.textContent = str || '';
+                return d.innerHTML;
+            }
+
+            // ========================================
+            // Boot
+            // ========================================
+            initApp();
+
+        })();
+    </script>
+
+</body>
+
+</html>
