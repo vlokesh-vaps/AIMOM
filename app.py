@@ -25,7 +25,7 @@ from config.settings import (
 from services.stt.deepgram_provider import DeepgramProvider
 from services.stt.nvidia_provider import NvidiaProvider
 from services.stt.provider_manager import ProviderManager
-from ai.manager import AIManager
+from ai.pipeline.manager import AIManager
 from reports.report_manager import ReportManager
 from utils.file_utils import ensure_directories, generate_filename, is_supported_audio
 from utils.logger import get_logger
@@ -63,6 +63,7 @@ class AnalyzeRequest(BaseModel):
     language: str = "English"
     ai_provider: Optional[str] = None
     context: Optional[str] = None
+    attendees: Optional[str] = None  # Comma-separated attendee names entered by user
 
 
 
@@ -259,6 +260,7 @@ async def analyze_meeting_transcript(req: AnalyzeRequest):
             date=meeting_date,
             transcript=analysis_transcript,
             provider_override=req.ai_provider,
+            attendees=req.attendees or None,
         )
     except Exception as e:
         logger.exception("AI meeting analysis failed")

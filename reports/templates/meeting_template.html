@@ -2,99 +2,94 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{meeting_title} - Meeting Summary Report</title>
+    <title>{meeting_title} - Meeting Minutes Report</title>
     <style>
         {styles}
     </style>
 </head>
 <body>
 
-    <!-- Static Footer Frame Content -->
-    <div id="footer_content" style="text-align: center; font-size: 8pt; color: #718096; border-top: 0.5px solid #edf2f7; padding-top: 5px;">
-        Confidential - {company_name} | Page <pdf:pagenumber/> of <pdf:pagecount/>
+    <div id="footer_content" class="footer-content">
+        Confidential - {company_name} | AI-generated Meeting Minutes | Page <pdf:pagenumber/> of <pdf:pagecount/>
     </div>
 
-    <div class="header">
+    <div class="cover-band">
         <table width="100%">
             <tr>
-                <td width="50%" align="left" valign="middle">
+                <td width="42%" align="left" valign="middle">
                     <img class="logo" src="{logo_path}" alt="Company Logo" />
                 </td>
-                <td width="50%" align="right" valign="middle">
+                <td width="58%" align="right" valign="middle">
                     <div class="company-name">{company_name}</div>
-                    <div class="report-type-header">Meeting Minutes Report</div>
+                    <div class="report-type-header">Minutes of Meeting (MoM)</div>
                 </td>
             </tr>
         </table>
     </div>
 
-    <div class="divider"></div>
+    <div class="title-panel">
+        <div class="kicker">Meeting Intelligence Report</div>
+        <h1 class="report-title">{meeting_title}</h1>
+        <p class="report-subtitle">{meeting_type} | {meeting_date}</p>
+    </div>
 
-    <!-- Title and Metadata -->
-    <h1 class="report-title">{meeting_title}</h1>
-    
     <div class="meta-section">
-        <h3 class="section-title-sub">Meeting Details</h3>
         <table class="meta-table">
             <tr>
-                <th>Meeting Date:</th>
-                <td>{meeting_date}</td>
-                <th>Duration:</th>
-                <td>{meeting_duration}</td>
-            </tr>
-            <tr>
-                <th>Generated At:</th>
+                <th>Generated</th>
                 <td>{generated_at}</td>
-                <th>Sentiment:</th>
-                <td><span class="sentiment-badge sentiment-{overall_sentiment_lower}">{overall_sentiment}</span></td>
-            </tr>
-            <tr>
-                <th>Meeting Type:</th>
-                <td colspan="3">{meeting_type}</td>
+                <th>Report Owner</th>
+                <td>{company_name}</td>
             </tr>
         </table>
     </div>
 
-    <!-- Executive Summary -->
+    <!-- SECTION 01: Executive Summary -->
     <div class="section">
-        <h2 class="section-title">Executive Summary</h2>
-        <p class="paragraph">{executive_summary}</p>
+        <h2 class="section-title"><span>01</span> Executive Summary</h2>
+        <div class="summary-box">
+            <p class="paragraph">{executive_summary}</p>
+        </div>
     </div>
 
-    <!-- Participants -->
+    <!-- SECTION 02: Attendees -->
     <div class="section">
-        <h2 class="section-title">Participants</h2>
+        <h2 class="section-title"><span>02</span> Attendees</h2>
         <ul class="clean-list inline-list">
-            {participants_html}
+            {attendees_html}
         </ul>
     </div>
 
-    <!-- Discussion Topics -->
+    <!-- SECTION 03: Key Discussion Topics -->
     <div class="section">
-        <h2 class="section-title">Key Discussion Topics</h2>
-        <ul class="bullet-list">
-            {topics_html}
-        </ul>
+        <h2 class="section-title"><span>03</span> Key Discussion Topics</h2>
+        {topics_html}
     </div>
 
-    <!-- Decisions -->
+    <!-- SECTION 04: Key Decisions -->
     <div class="section">
-        <h2 class="section-title">Decisions Made</h2>
+        <h2 class="section-title"><span>04</span> Key Decisions</h2>
         {decisions_html}
     </div>
 
-    <!-- Action Items -->
+    <!-- SECTION 05: Detailed Discussion Points -->
     <div class="section page-break-before">
-        <h2 class="section-title">Action Items</h2>
+        <h2 class="section-title"><span>05</span> Detailed Discussion Points</h2>
+        {discussion_points_html}
+    </div>
+
+    <!-- SECTION 06: Action Items Summary -->
+    <div class="section page-break-before">
+        <h2 class="section-title"><span>06</span> Action Items Summary</h2>
         <table class="data-table">
             <thead>
                 <tr>
-                    <th width="35%">Task</th>
-                    <th width="15%">Assigned To</th>
-                    <th width="15%">Target Date</th>
+                    <th width="34%">Task</th>
+                    <th width="16%">Assigned To</th>
+                    <th width="14%">Target Date</th>
                     <th width="10%">Priority</th>
-                    <th width="10%">Status</th>
-                    <th width="15%">Notes</th>
+                    <th width="12%">Status</th>
+                    <th width="14%">Notes</th>
                 </tr>
             </thead>
             <tbody>
@@ -103,44 +98,56 @@
         </table>
     </div>
 
-    <!-- Risks & Blockers -->
+    <!-- SECTION 07: Pending Items -->
     <div class="section">
-        <h2 class="section-title">Identified Risks & Dependencies</h2>
+        <h2 class="section-title"><span>07</span> Pending Items</h2>
+        {pending_html}
+    </div>
+
+    <!-- SECTION 08: Risks &amp; Blockers -->
+    <div class="section">
+        <h2 class="section-title"><span>08</span> Risks &amp; Blockers</h2>
         {risks_html}
     </div>
 
-    <!-- Questions Raised -->
+    <!-- SECTION 09: Open Questions -->
     <div class="section">
-        <h2 class="section-title">Questions Raised</h2>
+        <h2 class="section-title"><span>09</span> Open Questions</h2>
         {questions_html}
     </div>
 
-    <!-- Timeline -->
+    <!-- SECTION 10: Follow-up Items -->
     <div class="section">
-        <h2 class="section-title">Meeting Timeline</h2>
+        <h2 class="section-title"><span>10</span> Follow-up Items</h2>
+        {followups_html}
+    </div>
+
+    <!-- SECTION 11: Parking Lot Topics -->
+    <div class="section">
+        <h2 class="section-title"><span>11</span> Parking Lot Topics</h2>
+        {parking_lot_html}
+    </div>
+
+    <!-- SECTION 12: Meeting Timeline -->
+    <div class="section page-break-before">
+        <h2 class="section-title"><span>12</span> Meeting Timeline</h2>
         <table class="timeline-table">
             {timeline_html}
         </table>
     </div>
 
-    <!-- Keywords -->
+    <!-- SECTION 13: Keywords -->
     <div class="section">
-        <h2 class="section-title">Keywords</h2>
+        <h2 class="section-title"><span>13</span> Keywords</h2>
         <ul class="clean-list inline-list">
             {keywords_html}
         </ul>
     </div>
 
-    <!-- Followups -->
-    <div class="section">
-        <h2 class="section-title">Follow-up Activities</h2>
-        {followups_html}
-    </div>
-
-    <!-- Disclaimer Footer -->
     <div class="disclaimer">
-        Disclaimer: This meeting report was automatically generated by AI MOM Meeting Minutes System.
-        Please review the notes and action items for exact accuracy.
+        Disclaimer: This Minutes of Meeting report was automatically generated by AI MoM Meeting Minutes System.
+        Please review all discussion points, decisions, and action items for accuracy.
+        Confidential — For internal use only.
     </div>
 
 </body>

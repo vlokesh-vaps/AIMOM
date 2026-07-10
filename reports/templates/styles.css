@@ -2,129 +2,156 @@
 
 @page {
     size: a4;
-    margin: 2cm;
-    margin-bottom: 2.5cm;
+    margin: 1.55cm 1.65cm 2.25cm 1.65cm;
     @frame footer_frame {
         -pdf-frame-content: footer_content;
-        left: 57pt;
-        width: 480pt;
+        left: 47pt;
+        width: 500pt;
         top: 785pt;
         height: 30pt;
     }
 }
 
-
 body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    color: #2d3748;
-    line-height: 1.5;
-    font-size: 10pt;
+    font-family: Helvetica, Arial, sans-serif;
+    color: #243041;
+    line-height: 1.45;
+    font-size: 9.5pt;
+    background-color: #ffffff;
 }
 
-/* Header styling */
-.header {
-    margin-bottom: 10px;
+.footer-content {
+    text-align: center;
+    font-size: 7.5pt;
+    color: #748094;
+    border-top: 0.5px solid #dfe5ee;
+    padding-top: 6px;
+}
+
+.cover-band {
+    background-color: {theme_color};
+    color: #ffffff;
+    padding: 16px 18px 14px 18px;
+    margin-bottom: 0;
 }
 
 .logo {
-    max-height: 50px;
-    max-width: 200px;
+    max-height: 46px;
+    max-width: 190px;
 }
 
 .company-name {
-    font-size: 14pt;
+    font-size: 13pt;
     font-weight: bold;
-    color: {theme_color};
+    color: #ffffff;
 }
 
 .report-type-header {
-    font-size: 9pt;
+    font-size: 8pt;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #718096;
-    margin-top: 2px;
+    color: #dbeafe;
+    margin-top: 4px;
 }
 
-.divider {
-    border-bottom: 2px solid {theme_color};
-    margin-bottom: 20px;
+.title-panel {
+    border: 1px solid #d7deea;
+    border-top: 0;
+    padding: 18px 18px 14px 18px;
+    margin-bottom: 18px;
+    background-color: #f8fafc;
+}
+
+.kicker {
+    font-size: 8pt;
+    text-transform: uppercase;
+    color: {secondary_color};
+    font-weight: bold;
+    margin-bottom: 6px;
 }
 
 .report-title {
-    font-size: 20pt;
-    color: #1a202c;
+    font-size: 22pt;
+    color: #111827;
     margin-top: 0;
-    margin-bottom: 20px;
+    margin-bottom: 5px;
+    line-height: 1.18;
 }
 
-/* Metadata Block */
+.report-subtitle {
+    margin: 0;
+    color: #5b6678;
+    font-size: 9pt;
+}
+
 .meta-section {
-    background-color: #f7fafc;
-    border-left: 4px solid {theme_color};
-    padding: 12px 15px;
-    margin-bottom: 25px;
-}
-
-.section-title-sub {
-    margin-top: 0;
-    margin-bottom: 10px;
-    font-size: 11pt;
-    color: #4a5568;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    margin-bottom: 22px;
 }
 
 .meta-table {
     width: 100%;
     border-collapse: collapse;
+    background-color: #f8fafc;
+    border: 1px solid #dfe5ee;
 }
 
 .meta-table th {
     text-align: left;
     font-weight: bold;
-    color: #4a5568;
-    width: 20%;
-    padding: 4px 0;
-    font-size: 9pt;
+    color: #5b6678;
+    width: 18%;
+    padding: 8px 10px;
+    font-size: 8.5pt;
 }
 
 .meta-table td {
     text-align: left;
-    color: #2d3748;
-    width: 30%;
-    padding: 4px 0;
-    font-size: 9pt;
+    color: #243041;
+    width: 32%;
+    padding: 8px 10px;
+    font-size: 8.5pt;
 }
 
-/* Section headings */
 .section {
-    margin-bottom: 25px;
+    margin-bottom: 22px;
 }
 
 .section-title {
-    font-size: 13pt;
-    color: {theme_color};
-    border-bottom: 1px solid #e2e8f0;
-    padding-bottom: 5px;
-    margin-bottom: 12px;
+    font-size: 12.5pt;
+    color: #172033;
+    border-bottom: 1px solid #dfe5ee;
+    padding-bottom: 7px;
+    margin-bottom: 10px;
     margin-top: 0;
 }
 
-/* Paragraphs and list formatting */
+.section-title span {
+    color: {secondary_color};
+    font-size: 8.5pt;
+    font-weight: bold;
+    padding-right: 8px;
+}
+
+.summary-box {
+    border-left: 4px solid {secondary_color};
+    background-color: #f8fafc;
+    padding: 12px 14px;
+}
+
 .paragraph {
     margin-top: 0;
-    margin-bottom: 10px;
+    margin-bottom: 0;
     text-align: justify;
 }
 
 .bullet-list {
     margin-top: 0;
     margin-bottom: 10px;
-    padding-left: 20px;
+    padding-left: 18px;
 }
 
 .bullet-list li {
-    margin-bottom: 5px;
+    margin-bottom: 6px;
+    padding-left: 2px;
 }
 
 .clean-list {
@@ -135,71 +162,102 @@ body {
 
 .inline-list li {
     display: inline-block;
-    background-color: #edf2f7;
-    color: #4a5568;
-    padding: 4px 10px;
-    margin-right: 8px;
+    background-color: #eef4ff;
+    color: #1e3a5f;
+    border: 0.5px solid #cfe0f7;
+    padding: 4px 9px;
+    margin-right: 6px;
     margin-bottom: 8px;
-    border-radius: 3px;
-    font-size: 9pt;
+    font-size: 8.5pt;
 }
 
-/* Timeline Layout */
 .timeline-table {
     width: 100%;
     border-collapse: collapse;
+    border: 1px solid #dfe5ee;
 }
 
 .timeline-table td {
-    padding: 6px 10px;
-    border-bottom: 1px solid #edf2f7;
-    font-size: 9pt;
+    padding: 8px 10px;
+    border-bottom: 1px solid #e8edf5;
+    font-size: 8.8pt;
 }
 
 .timeline-time {
     font-weight: bold;
     color: {secondary_color};
-    width: 15%;
+    width: 18%;
+    background-color: #f8fafc;
 }
 
 .timeline-event {
-    color: #2d3748;
+    color: #243041;
 }
 
-/* Badges */
 .sentiment-badge {
-    padding: 2px 8px;
-    border-radius: 3px;
+    padding: 3px 8px;
     font-weight: bold;
     font-size: 8pt;
     text-transform: uppercase;
 }
 
 .sentiment-positive {
-    background-color: #c6f6d5;
-    color: #22543d;
+    background-color: #dcfce7;
+    color: #166534;
 }
 
 .sentiment-neutral {
-    background-color: #edf2f7;
-    color: #2d3748;
+    background-color: #e5e7eb;
+    color: #374151;
 }
 
 .sentiment-negative {
-    background-color: #fed7d7;
-    color: #742a2a;
+    background-color: #fee2e2;
+    color: #991b1b;
 }
 
 .sentiment-mixed {
-    background-color: #feebc8;
-    color: #744210;
+    background-color: #fef3c7;
+    color: #92400e;
 }
 
-/* Data Tables (Action Items) */
+.pill {
+    font-size: 7.2pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    padding: 2px 4px;
+    text-align: center;
+    display: block;
+}
+
+.pill-high,
+.pill-pending {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.pill-medium,
+.pill-in-progress {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.pill-low,
+.pill-completed {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+.pill-information {
+    background-color: #e5e7eb;
+    color: #374151;
+}
+
 .data-table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 10px;
+    margin-top: 8px;
+    border: 1px solid #dfe5ee;
 }
 
 .data-table th {
@@ -207,14 +265,15 @@ body {
     color: white;
     font-weight: bold;
     text-align: left;
-    padding: 8px 10px;
-    font-size: 9pt;
+    padding: 8px;
+    font-size: 8.2pt;
+    text-transform: uppercase;
 }
 
 .data-table td {
-    padding: 8px 10px;
-    border-bottom: 1px solid #e2e8f0;
-    font-size: 9pt;
+    padding: 8px;
+    border-bottom: 1px solid #e8edf5;
+    font-size: 8.3pt;
     vertical-align: top;
 }
 
@@ -222,17 +281,80 @@ body {
     background-color: #f7fafc;
 }
 
+.muted-row {
+    background-color: #fafafa;
+    color: #5b6678;
+    font-style: italic;
+}
+
 .page-break-before {
     page-break-before: always;
 }
 
-/* Disclaimer at footer */
 .disclaimer {
-    margin-top: 40px;
-    border-top: 1px solid #e2e8f0;
-    padding-top: 10px;
+    margin-top: 32px;
+    border-top: 1px solid #dfe5ee;
+    padding-top: 9px;
     font-size: 7.5pt;
-    color: #a0aec0;
+    color: #748094;
     text-align: center;
     font-style: italic;
+}
+
+/* ── Discussion Point Cards ── */
+.dp-card {
+    border: 1px solid #dfe5ee;
+    border-radius: 4px;
+    margin-bottom: 14px;
+    page-break-inside: avoid;
+}
+
+.dp-heading {
+    background-color: {theme_color};
+    color: #ffffff;
+    font-size: 9.5pt;
+    font-weight: bold;
+    padding: 7px 10px;
+}
+
+.dp-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.dp-label {
+    background-color: #f0f4f9;
+    color: #374151;
+    font-weight: bold;
+    font-size: 7.8pt;
+    padding: 6px 8px;
+    width: 18%;
+    border-bottom: 1px solid #e8edf5;
+    border-right: 1px solid #dfe5ee;
+    vertical-align: top;
+}
+
+.dp-value {
+    color: #243041;
+    font-size: 8.3pt;
+    padding: 6px 9px;
+    border-bottom: 1px solid #e8edf5;
+    vertical-align: top;
+}
+
+/* Additional pill colours for status variants */
+.pill-open {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.pill-in-progress,
+.pill-inprogress {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.pill-completed {
+    background-color: #dcfce7;
+    color: #166534;
 }

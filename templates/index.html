@@ -1154,6 +1154,109 @@
             background: var(--accent-subtle);
             color: var(--accent-hover);
         }
+
+        /* ── Attendees section below transcript ── */
+        .attendees-section {
+            flex-shrink: 0;
+            padding: 0.6rem 0.75rem;
+            border-top: 1px solid var(--border);
+            background: var(--bg-elevated);
+            display: none;
+        }
+
+        .attendees-section.visible {
+            display: block;
+        }
+
+        .attendees-section label {
+            display: block;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-3);
+            margin-bottom: 0.35rem;
+        }
+
+        .attendees-section textarea {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-1);
+            padding: 0.5rem 0.75rem;
+            font-size: 0.82rem;
+            resize: vertical;
+            min-height: 52px;
+            outline: none;
+            font-family: inherit;
+            transition: border-color var(--transition);
+        }
+
+        .attendees-section textarea:focus {
+            border-color: var(--border-focus);
+        }
+
+        .attendees-section textarea::placeholder {
+            color: var(--text-3);
+        }
+
+        /* ── Modal title required marker ── */
+        .required-mark {
+            color: var(--red);
+            margin-left: 2px;
+        }
+
+        /* ── Discussion Point cards in summary panel ── */
+        .dp-card-ui {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            margin-bottom: 0.75rem;
+            overflow: hidden;
+        }
+
+        .dp-card-header {
+            background: var(--accent-subtle);
+            border-bottom: 1px solid rgba(99,102,241,0.2);
+            padding: 0.5rem 0.75rem;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--accent-hover);
+        }
+
+        .dp-card-body {
+            padding: 0.5rem 0.75rem;
+        }
+
+        .dp-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.4rem;
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+
+        .dp-row-label {
+            flex-shrink: 0;
+            width: 130px;
+            font-weight: 600;
+            color: var(--text-3);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding-top: 1px;
+        }
+
+        .dp-row-value {
+            flex: 1;
+            color: var(--text-1);
+        }
+
+        .status-open {
+            background: var(--blue-subtle);
+            color: var(--blue);
+        }
     </style>
 </head>
 
@@ -1227,6 +1330,12 @@
                     <div class="transcript-text" id="transcript-text" style="display:none;"></div>
                 </div>
 
+                <!-- Attendees Section (shown after transcription completes) -->
+                <div class="attendees-section" id="attendees-section">
+                    <label for="attendees-input">👥 Attendees <span style="color:var(--text-3); text-transform:none; font-weight:400;">(comma-separated — used in MoM report)</span></label>
+                    <textarea id="attendees-input" placeholder="e.g. Alice Johnson, Bob Smith, Charlie Lee..."></textarea>
+                </div>
+
                 <div class="context-bar">
                     <input type="text" id="context-input"
                         placeholder="Add context for AI summary. For example: people involved, meeting objective, etc...">
@@ -1283,15 +1392,21 @@
                             <ul class="sum-list" id="sum-topics"></ul>
                         </div>
 
-                        <!-- Decisions -->
+                        <!-- Key Decisions -->
                         <div class="sum-section" id="sec-decisions">
-                            <div class="sum-section-title">✅ Decisions Made</div>
+                            <div class="sum-section-title">✅ Key Decisions</div>
                             <ul class="sum-list" id="sum-decisions"></ul>
+                        </div>
+
+                        <!-- Detailed Discussion Points -->
+                        <div class="sum-section" id="sec-discussion-points">
+                            <div class="sum-section-title">🗂️ Detailed Discussion Points</div>
+                            <div id="sum-discussion-points"></div>
                         </div>
 
                         <!-- Action Items -->
                         <div class="sum-section" id="sec-actions">
-                            <div class="sum-section-title">📌 Action Items</div>
+                            <div class="sum-section-title">📌 Action Items Summary</div>
                             <table class="sum-table" id="sum-actions-table">
                                 <thead>
                                     <tr>
@@ -1305,16 +1420,34 @@
                             </table>
                         </div>
 
+                        <!-- Pending Items -->
+                        <div class="sum-section" id="sec-pending">
+                            <div class="sum-section-title">⏳ Pending Items</div>
+                            <ul class="sum-list" id="sum-pending"></ul>
+                        </div>
+
                         <!-- Risks / Blockers -->
                         <div class="sum-section" id="sec-risks">
                             <div class="sum-section-title">⚠️ Risks & Blockers</div>
                             <ul class="sum-list" id="sum-risks"></ul>
                         </div>
 
+                        <!-- Open Questions -->
+                        <div class="sum-section" id="sec-questions">
+                            <div class="sum-section-title">❓ Open Questions</div>
+                            <ul class="sum-list" id="sum-questions"></ul>
+                        </div>
+
                         <!-- Follow-ups -->
                         <div class="sum-section" id="sec-followups">
-                            <div class="sum-section-title">🔄 Follow-ups</div>
+                            <div class="sum-section-title">🔄 Follow-up Items</div>
                             <ul class="sum-list" id="sum-followups"></ul>
+                        </div>
+
+                        <!-- Parking Lot -->
+                        <div class="sum-section" id="sec-parking">
+                            <div class="sum-section-title">🅿️ Parking Lot Topics</div>
+                            <ul class="sum-list" id="sum-parking"></ul>
                         </div>
 
                         <!-- Keywords -->
@@ -1367,6 +1500,13 @@
             <button class="modal-close" id="close-import">✕</button>
             <div class="modal-title">📥 Import Audio</div>
 
+            <!-- MANDATORY: Meeting Title -->
+            <div class="modal-form-group">
+                <label class="modal-label" for="import-meeting-title">Meeting Title <span class="required-mark">*</span></label>
+                <input class="modal-input" type="text" id="import-meeting-title"
+                    placeholder="Enter meeting title (required)...">
+            </div>
+
             <div class="upload-area" id="upload-area">
                 <input type="file" id="audio-file-input" style="display:none;"
                     accept=".wav,.mp3,.m4a,.aac,.ogg,.flac,.webm,.mp4">
@@ -1386,8 +1526,11 @@
             </div>
 
             <div class="modal-form-group" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem;">
-                <input type="checkbox" id="import-auto-summary" checked style="width: 16px; height: 16px; accent-color: var(--accent);">
-                <label class="modal-label" for="import-auto-summary" style="margin-bottom: 0; cursor: pointer; text-transform: none; font-size: 0.85rem; font-weight: 600;">Generate AI Summary</label>
+                <input type="checkbox" id="import-auto-summary" checked
+                    style="width: 16px; height: 16px; accent-color: var(--accent);">
+                <label class="modal-label" for="import-auto-summary"
+                    style="margin-bottom: 0; cursor: pointer; text-transform: none; font-size: 0.85rem; font-weight: 600;">Generate
+                    AI Summary</label>
             </div>
 
             <div class="modal-form-group" id="import-summary-provider-group" style="margin-top: 0.5rem;">
@@ -1395,7 +1538,8 @@
                 <select class="modal-select" id="import-summary-provider"></select>
             </div>
 
-            <button class="modal-action-btn" id="btn-start-transcribe" disabled style="margin-top: 1.25rem;">▶️ Start Transcription</button>
+            <button class="modal-action-btn" id="btn-start-transcribe" disabled style="margin-top: 1.25rem;">▶️ Start
+                Transcription</button>
         </div>
     </div>
 
@@ -1404,6 +1548,13 @@
         <div class="modal">
             <button class="modal-close" id="close-record">✕</button>
             <div class="modal-title">🎙️ Record Meeting</div>
+
+            <!-- MANDATORY: Meeting Title -->
+            <div class="modal-form-group">
+                <label class="modal-label" for="record-meeting-title">Meeting Title <span class="required-mark">*</span></label>
+                <input class="modal-input" type="text" id="record-meeting-title"
+                    placeholder="Enter meeting title (required)...">
+            </div>
 
             <div class="record-ui">
                 <div class="rec-btn-wrap">
@@ -1425,8 +1576,11 @@
             </div>
 
             <div class="modal-form-group" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem;">
-                <input type="checkbox" id="record-auto-summary" checked style="width: 16px; height: 16px; accent-color: var(--accent);">
-                <label class="modal-label" for="record-auto-summary" style="margin-bottom: 0; cursor: pointer; text-transform: none; font-size: 0.85rem; font-weight: 600;">Generate AI Summary</label>
+                <input type="checkbox" id="record-auto-summary" checked
+                    style="width: 16px; height: 16px; accent-color: var(--accent);">
+                <label class="modal-label" for="record-auto-summary"
+                    style="margin-bottom: 0; cursor: pointer; text-transform: none; font-size: 0.85rem; font-weight: 600;">Generate
+                    AI Summary</label>
             </div>
 
             <div class="modal-form-group" id="record-summary-provider-group" style="margin-top: 0.5rem;">
@@ -1434,7 +1588,8 @@
                 <select class="modal-select" id="record-summary-provider"></select>
             </div>
 
-            <button class="modal-action-btn" id="btn-transcribe-recording" disabled style="margin-top: 1.25rem;">▶️ Transcribe Recording</button>
+            <button class="modal-action-btn" id="btn-transcribe-recording" disabled style="margin-top: 1.25rem;">▶️
+                Transcribe Recording</button>
         </div>
     </div>
 
@@ -1519,6 +1674,19 @@
             const sumRisks = $('sum-risks');
             const sumFollowups = $('sum-followups');
             const sumKeywords = $('sum-keywords');
+            const sumDiscussionPoints = $('sum-discussion-points');
+            const sumPending = $('sum-pending');
+            const sumQuestions = $('sum-questions');
+            const sumParking = $('sum-parking');
+
+            // Attendees section
+            const attendeesSection = $('attendees-section');
+            const attendeesInput = $('attendees-input');
+
+            // Import modal title
+            const importMeetingTitle = $('import-meeting-title');
+            // Record modal title
+            const recordMeetingTitle = $('record-meeting-title');
 
             // Modals
             const modalSettings = $('modal-settings');
@@ -1585,7 +1753,7 @@
                 recordingBlob: null,
 
                 // Settings
-                meetingTitle: 'Meeting',
+                meetingTitle: '',
                 sttEngine: '',
                 language: 'English',
 
@@ -1594,6 +1762,9 @@
                 aiProviderDefault: '',
                 pdfUrl: '',
                 excelUrl: '',
+
+                // Attendees
+                attendees: '',
             };
 
             // ========================================
@@ -1640,14 +1811,39 @@
                 state.selectedFile = null;
                 uploadText.textContent = 'Click to choose or drag & drop audio file';
                 btnStartTranscribe.disabled = true;
+                importMeetingTitle.value = state.meetingTitle || '';
                 openModal(modalImport);
             });
             $('close-import').addEventListener('click', () => closeModal(modalImport));
 
-            $('btn-start-recording').addEventListener('click', () => openModal(modalRecord));
+            // Import title validation — title required before Start button activates
+            function updateImportStartBtn() {
+                const hasTitle = importMeetingTitle.value.trim().length > 0;
+                const hasFile = !!state.selectedFile;
+                btnStartTranscribe.disabled = !(hasTitle && hasFile);
+            }
+            importMeetingTitle.addEventListener('input', () => {
+                state.meetingTitle = importMeetingTitle.value.trim() || '';
+                updateImportStartBtn();
+            });
+
+
+            $('btn-start-recording').addEventListener('click', () => {
+                recordMeetingTitle.value = state.meetingTitle || '';
+                openModal(modalRecord);
+            });
             $('close-record').addEventListener('click', () => {
                 if (state.isRecording) stopRecording();
                 closeModal(modalRecord);
+            });
+
+            // Record title validation — required before Transcribe Recording activates
+            recordMeetingTitle.addEventListener('input', () => {
+                state.meetingTitle = recordMeetingTitle.value.trim() || '';
+                // Enable transcribe button only after a recording blob is ready AND title is present
+                if (state.recordingBlob) {
+                    btnTranscribeRecording.disabled = state.meetingTitle.length === 0;
+                }
             });
 
             $('btn-about').addEventListener('click', () => openModal(modalAbout));
@@ -1801,6 +1997,10 @@
                     resetSummary();
                     btnRegenerate.disabled = false;
 
+                    // Show attendees input section below transcript so they can type
+                    attendeesSection.classList.add('visible');
+                    attendeesInput.value = '';
+                    state.attendees = '';
                 } catch (err) {
                     showToast(`Failed to load transcript: ${err.message}`, 'error');
                 }
@@ -1854,6 +2054,13 @@
                 state.excelUrl = '';
                 dlPdf.href = '#';
                 dlExcel.href = '#';
+                // Clear new sections
+                if (sumDiscussionPoints) sumDiscussionPoints.innerHTML = '';
+                if (sumPending) sumPending.innerHTML = '';
+                if (sumQuestions) sumQuestions.innerHTML = '';
+                if (sumParking) sumParking.innerHTML = '';
+                // Hide attendees section
+                attendeesSection.classList.remove('visible');
             }
 
             async function downloadReport(url, fallbackName) {
@@ -1893,10 +2100,12 @@
                 sumSentiment.className = `sum-badge ${sentClass}`;
                 sumSentiment.textContent = `${sent === 'positive' ? '😊' : sent === 'negative' ? '😟' : sent === 'mixed' ? '🤔' : '😐'} ${s.overall_sentiment || 'Neutral'}`;
 
-                // Attendees
-                const participants = s.participants || [];
-                sumAttendees.textContent = participants.length > 0
-                    ? `Attendees: ${participants.join(', ')}`
+                // Attendees — manual list takes precedence over AI-detected
+                const manualAttendees = (s.attendees || []);
+                const aiParticipants = (s.participants || []);
+                const displayAttendees = manualAttendees.length > 0 ? manualAttendees : aiParticipants;
+                sumAttendees.textContent = displayAttendees.length > 0
+                    ? `👥 Attendees: ${displayAttendees.join(', ')}`
                     : '';
 
                 // Executive summary
@@ -1929,6 +2138,47 @@
 
                 // Follow-ups
                 renderList(sumFollowups, s.followups, 'sec-followups');
+
+                // Discussion Points cards
+                const dps = s.discussion_points || [];
+                if (dps.length > 0) {
+                    $('sec-discussion-points').style.display = 'block';
+                    sumDiscussionPoints.innerHTML = dps.map((dp, i) => `
+                        <div class="dp-card-ui">
+                            <div class="dp-card-header">${i + 1}. ${escapeHtml(dp.point || '')}</div>
+                            <div class="dp-card-body">
+                                <div class="dp-row"><span class="dp-row-label">Summary</span><span class="dp-row-value">${escapeHtml(dp.detailed_summary || '')}</span></div>
+                                <div class="dp-row"><span class="dp-row-label">Decision</span><span class="dp-row-value">${escapeHtml(dp.decision || 'No Decision Taken')}</span></div>
+                                <div class="dp-row"><span class="dp-row-label">Task</span><span class="dp-row-value">${escapeHtml(dp.task || 'No Action Item')}</span></div>
+                                <div class="dp-row"><span class="dp-row-label">Assigned To</span><span class="dp-row-value">${escapeHtml(dp.assigned_to || 'Not Specified')}</span></div>
+                                <div class="dp-row"><span class="dp-row-label">Deadline</span><span class="dp-row-value">${escapeHtml(dp.deadline || 'Not Specified')}</span></div>
+                                <div class="dp-row">
+                                    <span class="dp-row-label">Priority</span>
+                                    <span class="dp-row-value"><span class="priority-badge priority-${(dp.priority||'medium').toLowerCase()}">${escapeHtml(dp.priority||'Medium')}</span></span>
+                                </div>
+                                <div class="dp-row">
+                                    <span class="dp-row-label">Status</span>
+                                    <span class="dp-row-value"><span class="status-badge status-${(dp.status||'open').toLowerCase().replace(/\s/g,'')}">${escapeHtml(dp.status||'Open')}</span></span>
+                                </div>
+                                ${dp.risks_or_concerns ? `<div class="dp-row"><span class="dp-row-label">Risks</span><span class="dp-row-value">${escapeHtml(dp.risks_or_concerns)}</span></div>` : ''}
+                                ${dp.suggestions ? `<div class="dp-row"><span class="dp-row-label">Suggestions</span><span class="dp-row-value">${escapeHtml(dp.suggestions)}</span></div>` : ''}
+                                <div class="dp-row"><span class="dp-row-label">Follow-up</span><span class="dp-row-value">${escapeHtml(dp.follow_up_required || 'No')}</span></div>
+                                ${dp.notes ? `<div class="dp-row"><span class="dp-row-label">Notes</span><span class="dp-row-value">${escapeHtml(dp.notes)}</span></div>` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    $('sec-discussion-points').style.display = 'none';
+                }
+
+                // Pending Items
+                renderList(sumPending, s.pending_items, 'sec-pending');
+
+                // Open Questions
+                renderList(sumQuestions, s.questions, 'sec-questions');
+
+                // Parking Lot
+                renderList(sumParking, s.parking_lot, 'sec-parking');
 
                 // Keywords
                 const keywords = s.keywords || [];
@@ -2020,6 +2270,7 @@
                         language: state.currentLanguage || 'English',
                         ai_provider: state.aiProvider || null,
                         context: contextInput.value || null,
+                        attendees: attendeesInput.value.trim() || null,
                     };
 
                     const res = await fetch('/api/analyze', {
@@ -2083,11 +2334,16 @@
             function handleFileSelected(file) {
                 state.selectedFile = file;
                 uploadText.textContent = `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`;
-                btnStartTranscribe.disabled = false;
+                updateImportStartBtn();
             }
 
             btnStartTranscribe.addEventListener('click', async () => {
                 if (!state.selectedFile) return;
+                if (!state.meetingTitle || !state.meetingTitle.trim()) {
+                    showToast('Please enter a Meeting Title before starting transcription.', 'error');
+                    importMeetingTitle.focus();
+                    return;
+                }
                 closeModal(modalImport);
                 const engine = importEngine.value;
                 const language = importLanguage.value;
@@ -2121,7 +2377,8 @@
                     };
                     state.mediaRecorder.onstop = () => {
                         state.recordingBlob = new Blob(state.audioChunks, { type: state.mediaRecorder.mimeType });
-                        btnTranscribeRecording.disabled = false;
+                        // Only enable transcribe if title has been provided
+                        btnTranscribeRecording.disabled = !state.meetingTitle || state.meetingTitle.trim().length === 0;
                         recStatus.textContent = 'Recording captured. Click Transcribe to proceed.';
                     };
 
@@ -2180,7 +2437,7 @@
                 formData.append('file', payload, filename);
                 formData.append('engine', engine);
                 formData.append('language', language);
-                formData.append('title', state.meetingTitle || settingTitle.value || 'Meeting');
+                formData.append('title', state.meetingTitle || 'Meeting');
 
                 try {
                     const res = await fetch('/api/transcribe', {
@@ -2210,6 +2467,11 @@
                     // Reset summary panel, enable regenerate
                     resetSummary();
                     btnRegenerate.disabled = false;
+
+                    // Show attendees input section below transcript
+                    attendeesSection.classList.add('visible');
+                    attendeesInput.value = '';
+                    state.attendees = '';
 
                     // Set state AI provider to the selected one
                     if (summaryProvider) {

@@ -133,13 +133,20 @@ LLM_MAX_RETRIES: int = int(os.getenv("LLM_MAX_RETRIES", "3"))
 LLM_INITIAL_BACKOFF: float = float(os.getenv("LLM_INITIAL_BACKOFF", "2.0"))
 LLM_BACKOFF_FACTOR: float = float(os.getenv("LLM_BACKOFF_FACTOR", "2.0"))
 LLM_SAFETY_MARGIN: float = float(os.getenv("LLM_SAFETY_MARGIN", "0.9"))
-LLM_CHUNK_SIZE_TOKENS: int = int(os.getenv("LLM_CHUNK_SIZE_TOKENS", "2000"))
+LLM_CHUNK_SIZE_TOKENS: int = int(os.getenv("LLM_CHUNK_SIZE_TOKENS", "900"))
 LLM_THROTTLE_DELAY: float = float(os.getenv("LLM_THROTTLE_DELAY", "2.0"))
+LLM_CHUNK_MIN_TOKENS: int = int(os.getenv("LLM_CHUNK_MIN_TOKENS", "700"))
+GROQ_RPM_LIMIT: int = int(os.getenv("GROQ_RPM_LIMIT", "30"))
+GROQ_TPM_LIMIT: int = int(os.getenv("GROQ_TPM_LIMIT", "12000"))
+
+# Pipeline-specific model overrides
+CHUNK_EXTRACTOR_MODEL: str = os.getenv("CHUNK_EXTRACTOR_MODEL", "llama-3.3-70b-versatile")
+FINAL_REVIEWER_MODEL: str = os.getenv("FINAL_REVIEWER_MODEL", "gemma4:latest")
 
 # ---------------------------------------------------------------------------
 # Phase 4: Report Generation Settings
 # ---------------------------------------------------------------------------
 COMPANY_NAME: str = os.getenv("COMPANY_NAME", "VAPS TECHNOSOFT PVT. LTD.")
-COMPANY_LOGO_PATH: str = os.getenv("COMPANY_LOGO_PATH", r"C:\Users\Vaps\PycharmProjects\AIMOM\company logo.png")
+COMPANY_LOGO_PATH: str = os.getenv("COMPANY_LOGO_PATH", r"C:\Users\Vaps\PycharmProjects\AIMOM\reports\assets\company_logo.png")
 COMPANY_THEME_COLOR: str = os.getenv("COMPANY_THEME_COLOR", "#1e3a8a")  # Deep Blue
 COMPANY_SECONDARY_COLOR: str = os.getenv("COMPANY_SECONDARY_COLOR", "#3b82f6")  # Light Blue

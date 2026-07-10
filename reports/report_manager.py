@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Dict, Union
 
-from ai.schemas import MeetingSummary
+from ai.models.meeting import MeetingSummary
 from reports.pdf_generator import PDFGenerator
 from reports.excel_generator import ExcelGenerator
 from utils.logger import get_logger

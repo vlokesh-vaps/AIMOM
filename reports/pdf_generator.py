@@ -1,17 +1,21 @@
 """PDF Report Generator using xhtml2pdf.
 
-Renders meeting summary data into a professional corporate PDF report.
+Renders meeting summary data into a professional corporate PDF report
+containing all MoM sections: Discussion Points, Pending Items, Parking Lot, etc.
 """
 
 import time
+from datetime import datetime
+from html import escape
 from pathlib import Path
+
 from xhtml2pdf import pisa
 
 from config.settings import (
-    COMPANY_NAME,
     COMPANY_LOGO_PATH,
-    COMPANY_THEME_COLOR,
+    COMPANY_NAME,
     COMPANY_SECONDARY_COLOR,
+    COMPANY_THEME_COLOR,
 )
 from utils.logger import get_logger
 
@@ -39,7 +43,6 @@ class PDFGenerator:
         start_time = time.time()
         output_path = self._output_dir / filename
 
-        # Read template files
         template_html_path = self._template_dir / "meeting_template.html"
         styles_css_path = self._template_dir / "styles.css"
 
@@ -49,61 +52,67 @@ class PDFGenerator:
         html_template = template_html_path.read_text(encoding="utf-8")
         css_template = styles_css_path.read_text(encoding="utf-8")
 
-        # 1. Format CSS styles with branding variables via direct replace
         styled_css = css_template.replace("{company_name}", COMPANY_NAME)
         styled_css = styled_css.replace("{theme_color}", COMPANY_THEME_COLOR)
         styled_css = styled_css.replace("{secondary_color}", COMPANY_SECONDARY_COLOR)
 
+        # ── Resolve attendees (manual list takes precedence) ──────────────────
+        attendees = summary_data.get("attendees") or []
+        participants = summary_data.get("participants", [])
+        display_attendees = attendees if attendees else participants
 
-        # 2. Format HTML content lists
+        action_items = summary_data.get("action_items", [])
+        discussion_points = summary_data.get("discussion_points", [])
+        pending_items = summary_data.get("pending_items", [])
+        parking_lot = summary_data.get("parking_lot", [])
+
         topics_html = self._to_bullet_list(summary_data.get("topics", []))
         decisions_html = self._to_bullet_list(summary_data.get("decisions", []))
         risks_html = self._to_bullet_list(summary_data.get("risks", []))
         questions_html = self._to_bullet_list(summary_data.get("questions", []))
         followups_html = self._to_bullet_list(summary_data.get("followups", []))
-        
-        participants_html = "".join(
-            f"<li>{p}</li>" for p in summary_data.get("participants", [])
+        pending_html = self._to_bullet_list(pending_items)
+        parking_lot_html = self._to_bullet_list(parking_lot)
+
+        attendees_html = "".join(
+            f"<li>{self._html(a)}</li>" for a in display_attendees
         ) or "<li>None detected</li>"
 
         keywords_html = "".join(
-            f"<li>{k}</li>" for k in summary_data.get("keywords", [])
+            f"<li>{self._html(keyword)}</li>" for keyword in summary_data.get("keywords", [])
         ) or "<li>None</li>"
 
-        action_items_html = self._build_action_items_rows(summary_data.get("action_items", []))
+        action_items_html = self._build_action_items_rows(action_items)
+        discussion_points_html = self._build_discussion_points_html(discussion_points)
         timeline_html = self._build_timeline_html(summary_data.get("timeline", []))
-
-        # Check logo path existence for local filesystem resolution
+        generated_at = self._format_datetime(summary_data.get("generated_at", ""))
         logo_path = COMPANY_LOGO_PATH
         if not Path(logo_path).exists():
-            # Fallback to absolute assets path in reports directory
             logo_path = str(Path(__file__).resolve().parent / "assets" / "company_logo.png")
 
-        # 3. Inject variables into the HTML template
         formatted_html = html_template.format(
             styles=styled_css,
             logo_path=logo_path,
-            company_name=COMPANY_NAME,
-            meeting_title=summary_data.get("meeting_title", "Meeting"),
-            meeting_date=summary_data.get("meeting_date", ""),
-            meeting_duration=summary_data.get("meeting_duration", "Unknown"),
-            meeting_type=summary_data.get("meeting_type", "General"),
-            generated_at=summary_data.get("generated_at", ""),
-            overall_sentiment=summary_data.get("overall_sentiment", "Neutral"),
-            overall_sentiment_lower=summary_data.get("overall_sentiment", "Neutral").lower(),
-            executive_summary=summary_data.get("executive_summary", ""),
-            participants_html=participants_html,
+            company_name=self._html(COMPANY_NAME),
+            meeting_title=self._html(summary_data.get("meeting_title", "Meeting")),
+            meeting_date=self._html(summary_data.get("meeting_date", "")),
+            meeting_type=self._html(summary_data.get("meeting_type", "General")),
+            generated_at=self._html(generated_at),
+            executive_summary=self._html(summary_data.get("executive_summary", "")),
+            attendees_html=attendees_html,
             topics_html=topics_html,
             decisions_html=decisions_html,
             action_items_rows=action_items_html,
+            discussion_points_html=discussion_points_html,
             risks_html=risks_html,
             questions_html=questions_html,
             timeline_html=timeline_html,
             keywords_html=keywords_html,
             followups_html=followups_html,
+            pending_html=pending_html,
+            parking_lot_html=parking_lot_html,
         )
 
-        # 4. Compile HTML to PDF via xhtml2pdf
         logger.info("Compiling HTML to PDF: %s", output_path.name)
         with open(output_path, "w+b") as pdf_file:
             pisa_status = pisa.CreatePDF(
@@ -114,9 +123,8 @@ class PDFGenerator:
         if pisa_status.err:
             raise RuntimeError(f"xhtml2pdf compilation failed with error code {pisa_status.err}")
 
-        # Metrics logging
         duration = time.time() - start_time
-        file_size = output_path.stat().st_size / 1024  # KB
+        file_size = output_path.stat().st_size / 1024
         logger.info(
             "PDF generation complete. Path=%s, Size=%.2f KB, Duration=%.2fs",
             output_path,
@@ -125,16 +133,89 @@ class PDFGenerator:
         )
         return output_path
 
-    # ------------------------------------------------------------------
-    # Format Helpers
-    # ------------------------------------------------------------------
-
     @staticmethod
     def _to_bullet_list(items: list) -> str:
         """Convert a list of strings into a styled HTML bullet list."""
         if not items:
             return "<p class='paragraph' style='color:#718096; font-style:italic;'>None detected.</p>"
-        return "<ul class='bullet-list'>\n" + "\n".join(f"<li>{item}</li>" for item in items) + "\n</ul>"
+        rows = "\n".join(f"<li>{PDFGenerator._html(item)}</li>" for item in items)
+        return f"<ul class='bullet-list'>\n{rows}\n</ul>"
+
+    @staticmethod
+    def _build_discussion_points_html(discussion_points: list) -> str:
+        """Build HTML cards for each discussion point with all 12 MoM fields."""
+        if not discussion_points:
+            return "<p class='paragraph' style='color:#718096; font-style:italic;'>No discussion points captured.</p>"
+
+        cards = []
+        for i, dp in enumerate(discussion_points, start=1):
+            if isinstance(dp, dict):
+                get = lambda k, default="": dp.get(k, default)  # noqa: E731
+            else:
+                get = lambda k, default="": getattr(dp, k, default)  # noqa: E731
+
+            point = get("point", f"Discussion {i}")
+            detailed_summary = get("detailed_summary", "")
+            decision = get("decision", "No Decision Taken")
+            task = get("task", "No Action Item")
+            assigned_to = get("assigned_to", "Not Specified")
+            deadline = get("deadline", "Not Specified")
+            priority = get("priority", "Medium")
+            status = get("status", "Open")
+            risks_or_concerns = get("risks_or_concerns", "")
+            suggestions = get("suggestions", "")
+            follow_up_required = get("follow_up_required", "No")
+            notes = get("notes", "")
+
+            card = f"""
+<div class='dp-card'>
+    <div class='dp-heading'>{PDFGenerator._html(f'{i}. {point}')}</div>
+    <table class='dp-table'>
+        <tr>
+            <td class='dp-label'>Summary</td>
+            <td class='dp-value' colspan='3'>{PDFGenerator._html(detailed_summary)}</td>
+        </tr>
+        <tr>
+            <td class='dp-label'>Decision</td>
+            <td class='dp-value' colspan='3'>{PDFGenerator._html(decision)}</td>
+        </tr>
+        <tr>
+            <td class='dp-label'>Task / Action Item</td>
+            <td class='dp-value' colspan='3'>{PDFGenerator._html(task)}</td>
+        </tr>
+        <tr>
+            <td class='dp-label'>Assigned To</td>
+            <td class='dp-value'>{PDFGenerator._html(assigned_to)}</td>
+            <td class='dp-label'>Deadline</td>
+            <td class='dp-value'>{PDFGenerator._html(deadline)}</td>
+        </tr>
+        <tr>
+            <td class='dp-label'>Priority</td>
+            <td class='dp-value'>{PDFGenerator._badge(priority)}</td>
+            <td class='dp-label'>Status</td>
+            <td class='dp-value'>{PDFGenerator._badge(status)}</td>
+        </tr>
+        <tr>
+            <td class='dp-label'>Risks / Concerns</td>
+            <td class='dp-value' colspan='3'>{PDFGenerator._html(risks_or_concerns) or '<em style=\"color:#718096\">None</em>'}</td>
+        </tr>
+        <tr>
+            <td class='dp-label'>Suggestions</td>
+            <td class='dp-value' colspan='3'>{PDFGenerator._html(suggestions) or '<em style=\"color:#718096\">None</em>'}</td>
+        </tr>
+        <tr>
+            <td class='dp-label'>Follow-up Required</td>
+            <td class='dp-value' colspan='3'>{PDFGenerator._html(follow_up_required)}</td>
+        </tr>
+        <tr>
+            <td class='dp-label'>Notes</td>
+            <td class='dp-value' colspan='3'>{PDFGenerator._html(notes) or '<em style=\"color:#718096\">None</em>'}</td>
+        </tr>
+    </table>
+</div>"""
+            cards.append(card)
+
+        return "\n".join(cards)
 
     @staticmethod
     def _build_action_items_rows(action_items: list) -> str:
@@ -144,7 +225,6 @@ class PDFGenerator:
 
         rows = []
         for item in action_items:
-            # Handle if dict or pydantic model
             task = item.get("task", "") if isinstance(item, dict) else getattr(item, "task", "")
             owner = item.get("owner", "") if isinstance(item, dict) else getattr(item, "owner", "")
             target_date = item.get("target_date", "") if isinstance(item, dict) else getattr(item, "target_date", "")
@@ -152,11 +232,19 @@ class PDFGenerator:
             status = item.get("status", "Pending") if isinstance(item, dict) else getattr(item, "status", "Pending")
             notes = item.get("notes", "") if isinstance(item, dict) else getattr(item, "notes", "")
 
-            # Check if it's a task or general discussion
             is_task = False
             if owner and owner.strip():
-                o_lower = owner.strip().lower()
-                if o_lower not in ("unknown", "general", "none", "n/a", "nil", "general discussion", "information", "info"):
+                owner_lower = owner.strip().lower()
+                if owner_lower not in (
+                    "unknown",
+                    "general",
+                    "none",
+                    "n/a",
+                    "nil",
+                    "general discussion",
+                    "information",
+                    "info",
+                ):
                     is_task = True
             if status and status.strip().lower() in ("information", "info"):
                 is_task = False
@@ -166,25 +254,26 @@ class PDFGenerator:
                 target_date_display = target_date
                 priority_display = priority
                 status_display = status
-                row_style = ""
+                row_class = ""
             else:
                 participants_display = "Information"
                 target_date_display = ""
                 priority_display = ""
                 status_display = "Information"
-                # Apply a soft style to general discussion rows
-                row_style = "style='background-color: #fafafa; font-style: italic; color: #4a5568;'"
+                row_class = "class='muted-row'"
 
-            rows.append(f"""
-            <tr {row_style}>
-                <td>{task}</td>
-                <td>{participants_display}</td>
-                <td>{target_date_display}</td>
-                <td>{priority_display}</td>
-                <td>{status_display}</td>
-                <td>{notes}</td>
+            rows.append(
+                f"""
+            <tr {row_class}>
+                <td width="34%">{PDFGenerator._html(task)}</td>
+                <td width="16%">{PDFGenerator._html(participants_display)}</td>
+                <td width="14%">{PDFGenerator._html(target_date_display)}</td>
+                <td width="10%">{PDFGenerator._badge(priority_display)}</td>
+                <td width="12%">{PDFGenerator._badge(status_display)}</td>
+                <td width="14%">{PDFGenerator._html(notes)}</td>
             </tr>
-            """)
+            """
+            )
         return "\n".join(rows)
 
     @staticmethod
@@ -200,12 +289,41 @@ class PDFGenerator:
             elif ": " in event:
                 time_str, event_str = event.split(": ", 1)
             else:
-                time_str, event_str = "•", event
+                time_str, event_str = "-", event
 
-            rows.append(f"""
+            rows.append(
+                f"""
             <tr>
-                <td class="timeline-time">{time_str.strip()}</td>
-                <td class="timeline-event">{event_str.strip()}</td>
+                <td class="timeline-time" width="18%">{PDFGenerator._html(time_str.strip())}</td>
+                <td class="timeline-event" width="82%">{PDFGenerator._html(event_str.strip())}</td>
             </tr>
-            """)
+            """
+            )
         return "\n".join(rows)
+
+    @staticmethod
+    def _html(value: object) -> str:
+        """Escape untrusted LLM/user content before injecting it into the report HTML."""
+        return escape(str(value or ""), quote=True)
+
+    @staticmethod
+    def _css_token(value: object) -> str:
+        token = str(value or "").strip().lower().replace(" ", "-")
+        return "".join(char for char in token if char.isalnum() or char == "-") or "neutral"
+
+    @staticmethod
+    def _badge(value: str) -> str:
+        if not value:
+            return ""
+        safe_value = PDFGenerator._html(value)
+        return f"<div class='pill pill-{PDFGenerator._css_token(value)}'>{safe_value}</div>"
+
+    @staticmethod
+    def _format_datetime(value: str) -> str:
+        if not value:
+            return ""
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return str(value)
+        return parsed.strftime("%d %b %Y, %I:%M %p")
