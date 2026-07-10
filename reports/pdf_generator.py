@@ -63,28 +63,16 @@ class PDFGenerator:
 
         action_items = summary_data.get("action_items", [])
         discussion_points = summary_data.get("discussion_points", [])
-        pending_items = summary_data.get("pending_items", [])
-        parking_lot = summary_data.get("parking_lot", [])
 
         topics_html = self._to_bullet_list(summary_data.get("topics", []))
         decisions_html = self._to_bullet_list(summary_data.get("decisions", []))
-        risks_html = self._to_bullet_list(summary_data.get("risks", []))
-        questions_html = self._to_bullet_list(summary_data.get("questions", []))
-        followups_html = self._to_bullet_list(summary_data.get("followups", []))
-        pending_html = self._to_bullet_list(pending_items)
-        parking_lot_html = self._to_bullet_list(parking_lot)
 
         attendees_html = "".join(
             f"<li>{self._html(a)}</li>" for a in display_attendees
         ) or "<li>None detected</li>"
 
-        keywords_html = "".join(
-            f"<li>{self._html(keyword)}</li>" for keyword in summary_data.get("keywords", [])
-        ) or "<li>None</li>"
-
         action_items_html = self._build_action_items_rows(action_items)
         discussion_points_html = self._build_discussion_points_html(discussion_points)
-        timeline_html = self._build_timeline_html(summary_data.get("timeline", []))
         generated_at = self._format_datetime(summary_data.get("generated_at", ""))
         logo_path = COMPANY_LOGO_PATH
         if not Path(logo_path).exists():
@@ -104,13 +92,6 @@ class PDFGenerator:
             decisions_html=decisions_html,
             action_items_rows=action_items_html,
             discussion_points_html=discussion_points_html,
-            risks_html=risks_html,
-            questions_html=questions_html,
-            timeline_html=timeline_html,
-            keywords_html=keywords_html,
-            followups_html=followups_html,
-            pending_html=pending_html,
-            parking_lot_html=parking_lot_html,
         )
 
         logger.info("Compiling HTML to PDF: %s", output_path.name)
@@ -189,28 +170,6 @@ class PDFGenerator:
             <td class='dp-label'>Deadline</td>
             <td class='dp-value'>{PDFGenerator._html(deadline)}</td>
         </tr>
-        <tr>
-            <td class='dp-label'>Priority</td>
-            <td class='dp-value'>{PDFGenerator._badge(priority)}</td>
-            <td class='dp-label'>Status</td>
-            <td class='dp-value'>{PDFGenerator._badge(status)}</td>
-        </tr>
-        <tr>
-            <td class='dp-label'>Risks / Concerns</td>
-            <td class='dp-value' colspan='3'>{PDFGenerator._html(risks_or_concerns) or '<em style=\"color:#718096\">None</em>'}</td>
-        </tr>
-        <tr>
-            <td class='dp-label'>Suggestions</td>
-            <td class='dp-value' colspan='3'>{PDFGenerator._html(suggestions) or '<em style=\"color:#718096\">None</em>'}</td>
-        </tr>
-        <tr>
-            <td class='dp-label'>Follow-up Required</td>
-            <td class='dp-value' colspan='3'>{PDFGenerator._html(follow_up_required)}</td>
-        </tr>
-        <tr>
-            <td class='dp-label'>Notes</td>
-            <td class='dp-value' colspan='3'>{PDFGenerator._html(notes) or '<em style=\"color:#718096\">None</em>'}</td>
-        </tr>
     </table>
 </div>"""
             cards.append(card)
@@ -236,7 +195,6 @@ class PDFGenerator:
             if owner and owner.strip():
                 owner_lower = owner.strip().lower()
                 if owner_lower not in (
-                    "unknown",
                     "general",
                     "none",
                     "n/a",
@@ -271,31 +229,6 @@ class PDFGenerator:
                 <td width="10%">{PDFGenerator._badge(priority_display)}</td>
                 <td width="12%">{PDFGenerator._badge(status_display)}</td>
                 <td width="14%">{PDFGenerator._html(notes)}</td>
-            </tr>
-            """
-            )
-        return "\n".join(rows)
-
-    @staticmethod
-    def _build_timeline_html(timeline: list) -> str:
-        """Build HTML table rows for chronological timeline events."""
-        if not timeline:
-            return "<tr><td colspan='2' align='center' style='color:#718096; font-style:italic;'>No timeline details available.</td></tr>"
-
-        rows = []
-        for event in timeline:
-            if " - " in event:
-                time_str, event_str = event.split(" - ", 1)
-            elif ": " in event:
-                time_str, event_str = event.split(": ", 1)
-            else:
-                time_str, event_str = "-", event
-
-            rows.append(
-                f"""
-            <tr>
-                <td class="timeline-time" width="18%">{PDFGenerator._html(time_str.strip())}</td>
-                <td class="timeline-event" width="82%">{PDFGenerator._html(event_str.strip())}</td>
             </tr>
             """
             )

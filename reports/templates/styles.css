@@ -14,9 +14,9 @@
 
 body {
     font-family: Helvetica, Arial, sans-serif;
-    color: #243041;
-    line-height: 1.45;
-    font-size: 9.5pt;
+    color: #1e293b;
+    line-height: 1.5;
+    font-size: 10pt;
     background-color: #ffffff;
 }
 
@@ -54,19 +54,20 @@ body {
 }
 
 .title-panel {
-    border: 1px solid #d7deea;
+    border: 1px solid #e2e8f0;
     border-top: 0;
-    padding: 18px 18px 14px 18px;
-    margin-bottom: 18px;
+    padding: 20px 20px 16px 20px;
+    margin-bottom: 24px;
     background-color: #f8fafc;
 }
 
 .kicker {
-    font-size: 8pt;
+    font-size: 8.5pt;
     text-transform: uppercase;
     color: {secondary_color};
     font-weight: bold;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
 }
 
 .report-title {
@@ -116,25 +117,27 @@ body {
 }
 
 .section-title {
-    font-size: 12.5pt;
-    color: #172033;
-    border-bottom: 1px solid #dfe5ee;
-    padding-bottom: 7px;
-    margin-bottom: 10px;
+    font-size: 13.5pt;
+    color: #0f172a;
+    border-bottom: 1.5px solid #cbd5e1;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
     margin-top: 0;
+    font-weight: bold;
 }
 
 .section-title span {
     color: {secondary_color};
-    font-size: 8.5pt;
+    font-size: 9pt;
     font-weight: bold;
-    padding-right: 8px;
+    padding-right: 10px;
 }
 
 .summary-box {
-    border-left: 4px solid {secondary_color};
-    background-color: #f8fafc;
-    padding: 12px 14px;
+    border-left: 4px solid {theme_color};
+    background-color: #f1f5f9;
+    padding: 14px 16px;
+    border-radius: 0 4px 4px 0;
 }
 
 .paragraph {
@@ -162,13 +165,14 @@ body {
 
 .inline-list li {
     display: inline-block;
-    background-color: #eef4ff;
-    color: #1e3a5f;
-    border: 0.5px solid #cfe0f7;
-    padding: 4px 9px;
-    margin-right: 6px;
+    background-color: #f1f5f9;
+    color: #334155;
+    border: 1px solid #e2e8f0;
+    padding: 5px 12px;
+    margin-right: 8px;
     margin-bottom: 8px;
-    font-size: 8.5pt;
+    font-size: 9pt;
+    border-radius: 4px;
 }
 
 .timeline-table {
@@ -222,42 +226,49 @@ body {
 }
 
 .pill {
-    font-size: 7.2pt;
+    font-size: 7.5pt;
     font-weight: bold;
     text-transform: uppercase;
-    padding: 2px 4px;
+    padding: 3px 6px;
     text-align: center;
     display: block;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
 }
 
 .pill-high,
 .pill-pending {
     background-color: #fee2e2;
     color: #991b1b;
+    border: 1px solid #fecaca;
 }
 
 .pill-medium,
-.pill-in-progress {
+.pill-in-progress,
+.pill-inprogress {
     background-color: #fef3c7;
     color: #92400e;
+    border: 1px solid #fde68a;
 }
 
 .pill-low,
 .pill-completed {
     background-color: #dcfce7;
     color: #166534;
+    border: 1px solid #bbf7d0;
 }
 
 .pill-information {
-    background-color: #e5e7eb;
-    color: #374151;
+    background-color: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
 }
 
 .data-table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 8px;
-    border: 1px solid #dfe5ee;
+    margin-top: 10px;
+    border: 1px solid #e2e8f0;
 }
 
 .data-table th {
@@ -265,15 +276,16 @@ body {
     color: white;
     font-weight: bold;
     text-align: left;
-    padding: 8px;
-    font-size: 8.2pt;
+    padding: 10px;
+    font-size: 8.5pt;
     text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .data-table td {
-    padding: 8px;
-    border-bottom: 1px solid #e8edf5;
-    font-size: 8.3pt;
+    padding: 10px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 9pt;
     vertical-align: top;
 }
 
@@ -303,18 +315,20 @@ body {
 
 /* ── Discussion Point Cards ── */
 .dp-card {
-    border: 1px solid #dfe5ee;
-    border-radius: 4px;
-    margin-bottom: 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    margin-bottom: 16px;
     page-break-inside: avoid;
+    background-color: #ffffff;
 }
 
 .dp-heading {
-    background-color: {theme_color};
-    color: #ffffff;
-    font-size: 9.5pt;
+    background-color: #f8fafc;
+    color: #0f172a;
+    font-size: 10pt;
     font-weight: bold;
-    padding: 7px 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e8f0;
 }
 
 .dp-table {
@@ -323,22 +337,24 @@ body {
 }
 
 .dp-label {
-    background-color: #f0f4f9;
-    color: #374151;
+    background-color: #f1f5f9;
+    color: #475569;
     font-weight: bold;
-    font-size: 7.8pt;
-    padding: 6px 8px;
+    font-size: 8pt;
+    padding: 8px 10px;
     width: 18%;
-    border-bottom: 1px solid #e8edf5;
-    border-right: 1px solid #dfe5ee;
+    border-bottom: 1px solid #e2e8f0;
+    border-right: 1px solid #e2e8f0;
     vertical-align: top;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .dp-value {
-    color: #243041;
-    font-size: 8.3pt;
-    padding: 6px 9px;
-    border-bottom: 1px solid #e8edf5;
+    color: #1e293b;
+    font-size: 9pt;
+    padding: 8px 10px;
+    border-bottom: 1px solid #e2e8f0;
     vertical-align: top;
 }
 

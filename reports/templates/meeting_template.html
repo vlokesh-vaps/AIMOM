@@ -30,21 +30,9 @@
     <div class="title-panel">
         <div class="kicker">Meeting Intelligence Report</div>
         <h1 class="report-title">{meeting_title}</h1>
-        <p class="report-subtitle">{meeting_type} | {meeting_date}</p>
     </div>
 
-    <div class="meta-section">
-        <table class="meta-table">
-            <tr>
-                <th>Generated</th>
-                <td>{generated_at}</td>
-                <th>Report Owner</th>
-                <td>{company_name}</td>
-            </tr>
-        </table>
-    </div>
-
-    <!-- SECTION 01: Executive Summary -->
+       <!-- SECTION 01: Executive Summary -->
     <div class="section">
         <h2 class="section-title"><span>01</span> Executive Summary</h2>
         <div class="summary-box">
@@ -96,52 +84,6 @@
                 {action_items_rows}
             </tbody>
         </table>
-    </div>
-
-    <!-- SECTION 07: Pending Items -->
-    <div class="section">
-        <h2 class="section-title"><span>07</span> Pending Items</h2>
-        {pending_html}
-    </div>
-
-    <!-- SECTION 08: Risks &amp; Blockers -->
-    <div class="section">
-        <h2 class="section-title"><span>08</span> Risks &amp; Blockers</h2>
-        {risks_html}
-    </div>
-
-    <!-- SECTION 09: Open Questions -->
-    <div class="section">
-        <h2 class="section-title"><span>09</span> Open Questions</h2>
-        {questions_html}
-    </div>
-
-    <!-- SECTION 10: Follow-up Items -->
-    <div class="section">
-        <h2 class="section-title"><span>10</span> Follow-up Items</h2>
-        {followups_html}
-    </div>
-
-    <!-- SECTION 11: Parking Lot Topics -->
-    <div class="section">
-        <h2 class="section-title"><span>11</span> Parking Lot Topics</h2>
-        {parking_lot_html}
-    </div>
-
-    <!-- SECTION 12: Meeting Timeline -->
-    <div class="section page-break-before">
-        <h2 class="section-title"><span>12</span> Meeting Timeline</h2>
-        <table class="timeline-table">
-            {timeline_html}
-        </table>
-    </div>
-
-    <!-- SECTION 13: Keywords -->
-    <div class="section">
-        <h2 class="section-title"><span>13</span> Keywords</h2>
-        <ul class="clean-list inline-list">
-            {keywords_html}
-        </ul>
     </div>
 
     <div class="disclaimer">
