@@ -91,25 +91,27 @@ body {
 .meta-table {
     width: 100%;
     border-collapse: collapse;
-    background-color: #f8fafc;
-    border: 1px solid #dfe5ee;
+    background-color: #63621f;
+    border: 1px solid #2066c2;
 }
 
 .meta-table th {
     text-align: left;
     font-weight: bold;
-    color: #5b6678;
+    color: #475569;
     width: 18%;
-    padding: 8px 10px;
+    padding: 10px 12px;
     font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .meta-table td {
     text-align: left;
-    color: #243041;
+    color: #1e293b;
     width: 32%;
-    padding: 8px 10px;
-    font-size: 8.5pt;
+    padding: 10px 12px;
+    font-size: 9pt;
 }
 
 .section {

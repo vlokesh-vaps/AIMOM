@@ -141,12 +141,6 @@ class PDFGenerator:
             task = get("task", "No Action Item")
             assigned_to = get("assigned_to", "Not Specified")
             deadline = get("deadline", "Not Specified")
-            priority = get("priority", "Medium")
-            status = get("status", "Open")
-            risks_or_concerns = get("risks_or_concerns", "")
-            suggestions = get("suggestions", "")
-            follow_up_required = get("follow_up_required", "No")
-            notes = get("notes", "")
 
             card = f"""
 <div class='dp-card'>
