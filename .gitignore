@@ -1,6 +1,14 @@
 .env
+__pycache__/
+*.py[cod]
+*$py.class
 output/
 logs/
 excel/
 pdf/
 temp/
+config/__pycache__/
+models/__pycache__/
+services/__pycache__/
+services/stt/__pycache__/
+utils/__pycache__/
