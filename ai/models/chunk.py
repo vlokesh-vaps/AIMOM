@@ -27,8 +27,11 @@ class ChunkActionItem(BaseModel):
     owner: Optional[str] = None
     deadline: Optional[str] = None
     topic: Optional[str] = None
+    agenda_item: Optional[str] = None
+    authority_context: Optional[str] = None
+    tone_and_consequence: Optional[str] = None
 
-    @field_validator("task", "owner", "deadline", "topic", mode="before")
+    @field_validator("task", "owner", "deadline", "topic", "agenda_item", "authority_context", "tone_and_consequence", mode="before")
     @classmethod
     def clean_text(cls, value: object) -> Optional[str]:
         return _clean_optional(value)
@@ -42,8 +45,13 @@ class ChunkDiscussionPoint(BaseModel):
     topic: str
     details: str
     speakers: List[str] = Field(default_factory=list)
+    agenda_item: Optional[str] = None
+    authority_context: Optional[str] = None
+    tone_and_consequence: Optional[str] = None
+    cross_topic_context: Optional[str] = None
+    implicit_decision: Optional[str] = None
 
-    @field_validator("topic", "details", mode="before")
+    @field_validator("topic", "details", "agenda_item", "authority_context", "tone_and_consequence", "cross_topic_context", "implicit_decision", mode="before")
     @classmethod
     def clean_text(cls, value: object) -> Optional[str]:
         return _clean_optional(value)
@@ -62,6 +70,9 @@ class ChunkExtraction(BaseModel):
     questions: List[str] = Field(default_factory=list)
     deadlines: List[str] = Field(default_factory=list)
     participants: List[str] = Field(default_factory=list)
+    cross_topic_context: List[str] = Field(default_factory=list)
+    implicit_decisions: List[str] = Field(default_factory=list)
+    tone_and_consequences: List[str] = Field(default_factory=list)
 
     @field_validator(
         "decisions",
@@ -70,6 +81,9 @@ class ChunkExtraction(BaseModel):
         "questions",
         "deadlines",
         "participants",
+        "cross_topic_context",
+        "implicit_decisions",
+        "tone_and_consequences",
         mode="before",
     )
     @classmethod

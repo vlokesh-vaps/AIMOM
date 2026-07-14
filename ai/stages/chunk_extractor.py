@@ -13,6 +13,7 @@ from typing import Optional
 
 from pydantic import ValidationError
 
+from config.settings import LLM_REQUEST_THROTTLE_SECONDS
 from ai.utils.checkpoints import ChunkCheckpointStore
 from ai.models.chunk import ChunkExtraction
 from ai.stages.chunking_engine import TranscriptChunk
@@ -21,7 +22,7 @@ from ai.providers.base import (
     AIProviderTruncatedResponseError,
     BaseAIProvider,
 )
-from ai.prompting.templates import CHUNK_EXTRACTION_SYSTEM_PROMPT
+from ai.prompting.templates import CHUNK_EXTRACTION_SYSTEM_PROMPT, CHUNK_EXTRACTION_USER_PROMPT
 from ai.utils.rate_limiter import ProviderRequestScheduler
 from ai.utils.token_utils import estimate_tokens
 from ai.validators.validation_layer import ValidationLayer
@@ -43,8 +44,9 @@ class ChunkExtractor:
         retry_fn,
         scheduler: ProviderRequestScheduler,
         checkpoint_store: ChunkCheckpointStore | None = None,
-        max_output_tokens: int = 900,
+        max_output_tokens: int = 4096,
         min_split_tokens: int = 180,
+        throttle_seconds: float | None = None,
     ) -> None:
         self._provider = provider
         self._retry_fn = retry_fn
@@ -52,6 +54,7 @@ class ChunkExtractor:
         self._checkpoint_store = checkpoint_store
         self._max_output_tokens = max_output_tokens
         self._min_split_tokens = min_split_tokens
+        self._throttle_seconds = LLM_REQUEST_THROTTLE_SECONDS if throttle_seconds is None else throttle_seconds
         self._validator = ValidationLayer()
 
     def extract_all(
@@ -60,6 +63,8 @@ class ChunkExtractor:
         title: str,
         date: str,
         chunk_checkpoint: Optional[dict[int, dict]] = None,
+        agenda: Optional[str] = None,
+        attendees: Optional[str] = None,
     ) -> list[ChunkExtraction]:
         """Extract and validate all chunks in order."""
         if chunk_checkpoint is None:
@@ -82,16 +87,16 @@ class ChunkExtractor:
                 chunk.estimated_tokens,
                 self._provider.get_name(),
             )
-            extraction = self._extract_with_recovery(chunk, title, date, depth=0)
+            extraction = self._extract_with_recovery(chunk, title, date, depth=0, agenda=agenda, attendees=attendees, total_chunks=total)
             self._save_checkpoint(chunk.index, extraction, chunk_checkpoint)
             extractions.append(extraction)
 
         logger.info("[ChunkExtractor] Completed %d chunk extractions.", len(extractions))
         return extractions
 
-    def extract_single(self, chunk: TranscriptChunk, title: str, date: str) -> ChunkExtraction:
+    def extract_single(self, chunk: TranscriptChunk, title: str, date: str, agenda: Optional[str] = None, attendees: Optional[str] = None) -> ChunkExtraction:
         """Extract one chunk without using the batch checkpoint dictionary."""
-        return self._extract_with_recovery(chunk, title, date, depth=0)
+        return self._extract_with_recovery(chunk, title, date, depth=0, agenda=agenda, attendees=attendees, total_chunks=1)
 
     def _extract_with_recovery(
         self,
@@ -99,38 +104,43 @@ class ChunkExtractor:
         title: str,
         date: str,
         depth: int,
+        agenda: Optional[str] = None,
+        attendees: Optional[str] = None,
+        total_chunks: int = 1,
     ) -> ChunkExtraction:
-        """Retry a chunk by halving input when output is truncated or invalid."""
+        """Retry a chunk exactly once on failure. If it fails again, log and return empty."""
         try:
-            return self._call_and_parse(chunk, title, date)
+            return self._call_and_parse(chunk, title, date, agenda=agenda, attendees=attendees, total_chunks=total_chunks)
         except (AIProviderTruncatedResponseError, ValidationError, json.JSONDecodeError, ChunkExtractionError) as exc:
-            if chunk.estimated_tokens <= self._min_split_tokens:
-                logger.warning(
-                    "[ChunkExtractor] Chunk %d too small to split after error: %s. Returning empty extraction.",
-                    chunk.index,
-                    exc,
-                )
+            logger.warning(
+                "[ChunkExtractor] Chunk %d extraction failed: %s. Retrying once.",
+                chunk.index + 1,
+                exc,
+            )
+            try:
+                return self._call_and_parse(chunk, title, date, agenda=agenda, attendees=attendees, total_chunks=total_chunks)
+            except Exception as e:
+                logger.error("[ChunkExtractor] Chunk %d failed again. Saving to fallback log.", chunk.index + 1)
+                import os
+                os.makedirs("logs", exist_ok=True)
+                with open("logs/fallback_chunk_failures.log", "a", encoding="utf-8") as f:
+                    f.write(f"\n\n--- CHUNK {chunk.index + 1} FAILURE ---\nError: {e}\nChunk Text:\n{chunk.text}\n")
                 return ChunkExtraction()
 
-            logger.warning(
-                "[ChunkExtractor] Chunk %d extraction hit size/JSON limit. Splitting by ~50%% and retrying.",
-                chunk.index,
-            )
-            left, right = self._split_chunk(chunk)
-            left_result = self._extract_with_recovery(left, title, date, depth + 1)
-            right_result = self._extract_with_recovery(right, title, date, depth + 1)
-            return self._combine_extractions([left_result, right_result])
-
-    def _call_and_parse(self, chunk: TranscriptChunk, title: str, date: str) -> ChunkExtraction:
-        prompt = self._build_user_prompt(chunk, title, date)
+    def _call_and_parse(self, chunk: TranscriptChunk, title: str, date: str, agenda: Optional[str] = None, attendees: Optional[str] = None, total_chunks: int = 1) -> ChunkExtraction:
+        prompt = self._build_user_prompt(chunk, title, date, agenda=agenda, attendees=attendees, total_chunks=total_chunks)
         request_tokens = estimate_tokens(CHUNK_EXTRACTION_SYSTEM_PROMPT) + estimate_tokens(prompt) + self._max_output_tokens
 
         self._scheduler.acquire(request_tokens)
         failed = False
         rate_limited = False
         try:
-            logger.info("[ChunkExtractor] Sleeping 20 seconds to prevent exceeding rate limits...")
-            time.sleep(20)
+            if self._throttle_seconds > 0:
+                logger.info(
+                    "[ChunkExtractor] Applying configured request throttle: %.2fs.",
+                    self._throttle_seconds,
+                )
+                time.sleep(self._throttle_seconds)
             raw_response = self._retry_fn(
                 provider=self._provider,
                 system_prompt=CHUNK_EXTRACTION_SYSTEM_PROMPT,
@@ -156,22 +166,32 @@ class ChunkExtractor:
             self._scheduler.release(failed=failed, rate_limited=rate_limited)
 
     @staticmethod
-    def _build_user_prompt(chunk: TranscriptChunk, title: str, date: str) -> str:
-        parts = [
-            f"Meeting title: {title}",
-            f"Meeting date: {date}",
-            f"Chunk: {chunk.index + 1}",
-        ]
-        if chunk.speakers:
-            parts.append(f"Speakers: {', '.join(chunk.speakers)}")
-        if chunk.overlap_prefix:
-            parts.append(
-                "Overlap context, reference only:\n"
-                f"{chunk.overlap_prefix}\n"
-                "End overlap context."
-            )
-        parts.append(f"Transcript chunk:\n{chunk.text}")
-        return "\n".join(parts)
+    def _build_user_prompt(chunk: TranscriptChunk, title: str, date: str, agenda: Optional[str] = None, attendees: Optional[str] = None, total_chunks: int = 1) -> str:
+        attendees_list = attendees.strip() if attendees and attendees.strip() else "Not provided"
+        
+        filtered_agenda = []
+        if agenda and agenda.strip():
+            agenda_points = [p.strip() for p in agenda.strip().split("\n") if p.strip()]
+            for point in agenda_points:
+                keywords = [w.lower() for w in re.findall(r'\b\w{4,}\b', point)]
+                chunk_text_lower = chunk.text.lower()
+                if any(kw in chunk_text_lower for kw in keywords):
+                    filtered_agenda.append(point)
+            
+            if not filtered_agenda:
+                filtered_agenda = agenda_points
+        
+        agenda_points_numbered = "\n".join(filtered_agenda) if filtered_agenda else "No agenda provided."
+        
+        return CHUNK_EXTRACTION_USER_PROMPT.format(
+            chunk_index=chunk.index + 1,
+            total_chunks=total_chunks,
+            title=title,
+            date=date,
+            attendees_list=attendees_list,
+            agenda_points_numbered=agenda_points_numbered,
+            chunk_text=chunk.text
+        )
 
     @staticmethod
     def _parse_extraction(raw_response: str, validator: ValidationLayer) -> ChunkExtraction:
@@ -228,6 +248,9 @@ class ChunkExtractor:
             combined.questions.extend(item.questions)
             combined.deadlines.extend(item.deadlines)
             combined.participants.extend(item.participants)
+            combined.cross_topic_context.extend(item.cross_topic_context)
+            combined.implicit_decisions.extend(item.implicit_decisions)
+            combined.tone_and_consequences.extend(item.tone_and_consequences)
         return combined
 
     def _load_checkpoint(

@@ -64,34 +64,20 @@ class PDFGenerator:
         action_items = summary_data.get("action_items", [])
         discussion_points = summary_data.get("discussion_points", [])
 
-        topics_html = self._to_bullet_list(summary_data.get("topics", []))
-        decisions_html = self._to_bullet_list(summary_data.get("decisions", []))
-
-        attendees_html = "".join(
-            f"<li>{self._html(a)}</li>" for a in display_attendees
-        ) or "<li>None detected</li>"
-
-        action_items_html = self._build_action_items_rows(action_items)
-        discussion_points_html = self._build_discussion_points_html(discussion_points)
-        generated_at = self._format_datetime(summary_data.get("generated_at", ""))
-        logo_path = COMPANY_LOGO_PATH
-        if not Path(logo_path).exists():
-            logo_path = str(Path(__file__).resolve().parent / "assets" / "company_logo.png")
+        attendees_list = ", ".join(self._html(a) for a in display_attendees) if display_attendees else "None"
+        unified_table_rows = self._build_unified_table(discussion_points, action_items)
 
         formatted_html = html_template.format(
             styles=styled_css,
-            logo_path=logo_path,
             company_name=self._html(COMPANY_NAME),
             meeting_title=self._html(summary_data.get("meeting_title", "Meeting")),
             meeting_date=self._html(summary_data.get("meeting_date", "")),
+            chaired_by=self._html(summary_data.get("chaired_by", "") or "Not specified"),
             meeting_type=self._html(summary_data.get("meeting_type", "General")),
-            generated_at=self._html(generated_at),
-            executive_summary=self._html(summary_data.get("executive_summary", "")),
-            attendees_html=attendees_html,
-            topics_html=topics_html,
-            decisions_html=decisions_html,
-            action_items_rows=action_items_html,
-            discussion_points_html=discussion_points_html,
+            organization=self._html(summary_data.get("organization", "") or COMPANY_NAME),
+            attendees_list=attendees_list,
+            absents=self._html(summary_data.get("absents", "") or "Nil"),
+            unified_table_rows=unified_table_rows,
         )
 
         logger.info("Compiling HTML to PDF: %s", output_path.name)
@@ -123,110 +109,90 @@ class PDFGenerator:
         return f"<ul class='bullet-list'>\n{rows}\n</ul>"
 
     @staticmethod
-    def _build_discussion_points_html(discussion_points: list) -> str:
-        """Build HTML cards for each discussion point with all 12 MoM fields."""
-        if not discussion_points:
-            return "<p class='paragraph' style='color:#718096; font-style:italic;'>No discussion points captured.</p>"
-
-        cards = []
-        for i, dp in enumerate(discussion_points, start=1):
-            if isinstance(dp, dict):
-                get = lambda k, default="": dp.get(k, default)  # noqa: E731
-            else:
-                get = lambda k, default="": getattr(dp, k, default)  # noqa: E731
-
-            point = get("point", f"Discussion {i}")
-            detailed_summary = get("detailed_summary", "")
-            decision = get("decision", "No Decision Taken")
-            task = get("task", "No Action Item")
-            assigned_to = get("assigned_to", "Not Specified")
-            deadline = get("deadline", "Not Specified")
-
-            card = f"""
-<div class='dp-card'>
-    <div class='dp-heading'>{PDFGenerator._html(f'{i}. {point}')}</div>
-    <table class='dp-table'>
-        <tr>
-            <td class='dp-label'>Summary</td>
-            <td class='dp-value' colspan='3'>{PDFGenerator._html(detailed_summary)}</td>
-        </tr>
-        <tr>
-            <td class='dp-label'>Decision</td>
-            <td class='dp-value' colspan='3'>{PDFGenerator._html(decision)}</td>
-        </tr>
-        <tr>
-            <td class='dp-label'>Task / Action Item</td>
-            <td class='dp-value' colspan='3'>{PDFGenerator._html(task)}</td>
-        </tr>
-        <tr>
-            <td class='dp-label'>Assigned To</td>
-            <td class='dp-value'>{PDFGenerator._html(assigned_to)}</td>
-            <td class='dp-label'>Deadline</td>
-            <td class='dp-value'>{PDFGenerator._html(deadline)}</td>
-        </tr>
-    </table>
-</div>"""
-            cards.append(card)
-
-        return "\n".join(cards)
-
-    @staticmethod
-    def _build_action_items_rows(action_items: list) -> str:
-        """Build HTML table rows for action items."""
-        if not action_items:
-            return "<tr><td colspan='6' align='center' style='color:#718096; font-style:italic;'>No details available.</td></tr>"
+    def _build_unified_table(discussion_points: list, action_items: list) -> str:
+        """Build the unified details table combining discussions and actions grouped by agenda."""
+        actions_by_agenda: dict[str, list] = {}
+        for item in action_items:
+            agenda = PDFGenerator._get(item, "agenda_item", "").strip() or "Off Agenda Discussion"
+            actions_by_agenda.setdefault(agenda, []).append(item)
 
         rows = []
-        for item in action_items:
-            task = item.get("task", "") if isinstance(item, dict) else getattr(item, "task", "")
-            owner = item.get("owner", "") if isinstance(item, dict) else getattr(item, "owner", "")
-            target_date = item.get("target_date", "") if isinstance(item, dict) else getattr(item, "target_date", "")
-            priority = item.get("priority", "Medium") if isinstance(item, dict) else getattr(item, "priority", "Medium")
-            status = item.get("status", "Pending") if isinstance(item, dict) else getattr(item, "status", "Pending")
-            notes = item.get("notes", "") if isinstance(item, dict) else getattr(item, "notes", "")
+        used_action_ids: set[int] = set()
 
-            is_task = False
-            if owner and owner.strip():
-                owner_lower = owner.strip().lower()
-                if owner_lower not in (
-                    "general",
-                    "none",
-                    "n/a",
-                    "nil",
-                    "general discussion",
-                    "information",
-                    "info",
-                ):
-                    is_task = True
-            if status and status.strip().lower() in ("information", "info"):
-                is_task = False
+        for idx, dp in enumerate(discussion_points, start=1):
+            agenda = PDFGenerator._get(dp, "agenda_item", "Off Agenda Discussion").strip() or "Off Agenda Discussion"
+            matched = actions_by_agenda.get(agenda, [])
+            actions_html = PDFGenerator._join_list_html(PDFGenerator._get(item, "task", "") for item in matched) or "No Action Item"
+            assigned_html = PDFGenerator._html(PDFGenerator._join_unique(PDFGenerator._get(item, "owner", "") for item in matched) or PDFGenerator._get(dp, "assigned_to", "Not Specified"))
+            date_html = PDFGenerator._html(PDFGenerator._join_unique(PDFGenerator._get(item, "target_date", "") for item in matched) or PDFGenerator._get(dp, "deadline", "Not Specified"))
 
-            if is_task:
-                participants_display = owner.strip()
-                target_date_display = target_date
-                priority_display = priority
-                status_display = status
-                row_class = ""
-            else:
-                participants_display = "Information"
-                target_date_display = ""
-                priority_display = ""
-                status_display = "Information"
-                row_class = "class='muted-row'"
+            summary_html = PDFGenerator._html(PDFGenerator._get(dp, "point", ""))
+            details = PDFGenerator._get(dp, "detailed_summary", "")
+            if details and details != PDFGenerator._get(dp, "point", ""):
+                summary_html += f"<br/>{PDFGenerator._html(details)}"
+            decision = PDFGenerator._get(dp, "decision", "")
+            if decision and decision != "No Decision Taken":
+                summary_html += f"<br/><em>Decision:</em> {PDFGenerator._html(decision)}"
 
             rows.append(
                 f"""
-            <tr {row_class}>
-                <td width="34%">{PDFGenerator._html(task)}</td>
-                <td width="16%">{PDFGenerator._html(participants_display)}</td>
-                <td width="14%">{PDFGenerator._html(target_date_display)}</td>
-                <td width="10%">{PDFGenerator._badge(priority_display)}</td>
-                <td width="12%">{PDFGenerator._badge(status_display)}</td>
-                <td width="14%">{PDFGenerator._html(notes)}</td>
-            </tr>
-            """
+                <tr>
+                    <td>{PDFGenerator._html(f"{idx}. {agenda}")}</td>
+                    <td>{actions_html}</td>
+                    <td>{summary_html}</td>
+                    <td>{assigned_html}</td>
+                    <td>{date_html}</td>
+                </tr>
+                """
             )
+            for item in matched:
+                used_action_ids.add(id(item))
+
+        next_index = len(rows) + 1
+        for item in action_items:
+            if id(item) in used_action_ids:
+                continue
+            agenda = PDFGenerator._get(item, "agenda_item", "").strip() or "Off Agenda Discussion"
+            rows.append(
+                f"""
+                <tr>
+                    <td>{PDFGenerator._html(f"{next_index}. {agenda}")}</td>
+                    <td>{PDFGenerator._html(PDFGenerator._get(item, "task", ""))}</td>
+                    <td></td>
+                    <td>{PDFGenerator._html(PDFGenerator._get(item, "owner", ""))}</td>
+                    <td>{PDFGenerator._html(PDFGenerator._get(item, "target_date", ""))}</td>
+                </tr>
+                """
+            )
+            next_index += 1
+
+        if not rows:
+            return "<tr><td colspan='5' align='center'>No detailed records found.</td></tr>"
         return "\n".join(rows)
+
+    @staticmethod
+    def _join_list_html(values) -> str:
+        items = [PDFGenerator._html(str(value).strip()) for value in values if str(value or "").strip()]
+        if not items:
+            return ""
+        return "<ul class='action-item-list'>" + "".join(f"<li>{item}</li>" for item in items) + "</ul>"
+
+    @staticmethod
+    def _join_unique(values) -> str:
+        seen: list[str] = []
+        for value in values:
+            text = str(value or "").strip()
+            if not text or text in ("Not Specified", "-"):
+                continue
+            if text not in seen:
+                seen.append(text)
+        return " / ".join(seen)
+
+    @staticmethod
+    def _get(item, key: str, default: str = "") -> str:
+        if isinstance(item, dict):
+            return item.get(key, default)
+        return getattr(item, key, default)
 
     @staticmethod
     def _html(value: object) -> str:

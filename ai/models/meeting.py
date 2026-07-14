@@ -31,6 +31,21 @@ class ActionItem(BaseModel):
         "",
         description="Additional context, constraints, or notes regarding the task."
     )
+    agenda_item: str = Field(
+        "Off Agenda Discussion",
+        description=(
+            "The agenda item this task belongs to. Defaults to "
+            "'Off Agenda Discussion' when no explicit agenda match exists."
+        )
+    )
+    authority_context: str = Field(
+        "",
+        description="Who requested or authorized this action and the authority context stated in the transcript."
+    )
+    tone_and_consequence: str = Field(
+        "",
+        description="Tone, urgency, warning, or consequence attached to this action, if explicitly stated."
+    )
 
 
 class DiscussionPoint(BaseModel):
@@ -96,6 +111,30 @@ class DiscussionPoint(BaseModel):
         "",
         description="Additional notes, context, or miscellaneous information for this discussion point."
     )
+    agenda_item: str = Field(
+        "Off Agenda Discussion",
+        description=(
+            "The agenda item this discussion maps to. Only set when the agenda is provided "
+            "and there is explicit evidence the discussion relates to a specific agenda item. "
+            "Defaults to 'Off Agenda Discussion' when no match exists."
+        )
+    )
+    authority_context: str = Field(
+        "",
+        description="Who said what, their role or authority, and whether they proposed, directed, approved, or challenged it."
+    )
+    tone_and_consequence: str = Field(
+        "",
+        description="Explicit tone and consequence language such as final warning, last chance, escalation, or deadline impact."
+    )
+    cross_topic_context: str = Field(
+        "",
+        description="Links to related agenda topics when this discussion or escalation spans more than one topic."
+    )
+    implicit_decision: str = Field(
+        "",
+        description="Inferred consensus only when the transcript contains explicit agreement, acceptance, or no-objection evidence; otherwise empty."
+    )
 
 
 class MeetingSummary(BaseModel):
@@ -104,6 +143,22 @@ class MeetingSummary(BaseModel):
     meeting_title: str = Field(
         ...,
         description="Title of the meeting."
+    )
+    meeting_date: str = Field(
+        "",
+        description="Meeting date as displayed in the exported MoM reports."
+    )
+    chaired_by: str = Field(
+        "",
+        description="Name of the meeting chairperson for the report header."
+    )
+    organization: str = Field(
+        "",
+        description="Organization name for the report header."
+    )
+    absents: str = Field(
+        "Nil",
+        description="Absentees text shown in the report header."
     )
     executive_summary: str = Field(
         ...,
@@ -124,6 +179,18 @@ class MeetingSummary(BaseModel):
     decisions: List[str] = Field(
         default_factory=list,
         description="All decisions made during the meeting."
+    )
+    implicit_decisions: List[str] = Field(
+        default_factory=list,
+        description="Consensus signals explicitly supported by agreement, acceptance, or no-objection language and labeled as inferred."
+    )
+    cross_topic_context: List[str] = Field(
+        default_factory=list,
+        description="Important links and escalations that span multiple agenda topics."
+    )
+    tone_and_consequences: List[str] = Field(
+        default_factory=list,
+        description="Material tone, urgency, warning, and consequence statements from the meeting."
     )
     risks: List[str] = Field(
         default_factory=list,

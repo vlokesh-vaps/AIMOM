@@ -182,14 +182,20 @@ class ValidationLayer:
         if not summary.participants:
             warnings.append("participants list is empty — no speakers detected.")
 
+        attendee_names = {a.lower().strip() for a in summary.attendees}
+
         for ai in summary.action_items:
-            if ai.owner and ai.owner.strip() and ai.owner.lower().strip() not in known_people:
-                # Auto-add to participants rather than reject
-                summary.participants.append(ai.owner.strip())
-                known_people.add(ai.owner.lower().strip())
-                warnings.append(
-                    f"Action item owner '{ai.owner}' was not in participants/attendees — auto-added."
-                )
+            if ai.owner and ai.owner.strip():
+                owner_lower = ai.owner.lower().strip()
+                if summary.attendees:
+                    if owner_lower not in attendee_names:
+                        warnings.append(f"Action item owner '{ai.owner}' not in attendees list. Set to 'To Be Assigned'.")
+                        ai.owner = "To Be Assigned"
+                else:
+                    if owner_lower not in known_people:
+                        summary.participants.append(ai.owner.strip())
+                        known_people.add(owner_lower)
+                        warnings.append(f"Action item owner '{ai.owner}' was not in participants — auto-added.")
 
         for dp in summary.discussion_points:
             if (

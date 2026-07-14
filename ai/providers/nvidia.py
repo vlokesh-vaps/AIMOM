@@ -11,12 +11,14 @@ from config.settings import (
     AI_MAX_TOKENS,
     AI_TOP_P,
     AI_TIMEOUT,
+    NVIDIA_MOM_MODEL,
 )
 from ai.providers.base import (
     BaseAIProvider,
     AIProviderError,
     AIProviderTimeoutError,
     AIProviderRateLimitError,
+    AIProviderTruncatedResponseError,
 )
 from ai.prompting.templates import SYSTEM_PROMPT, format_user_prompt
 from utils.logger import get_logger
@@ -27,9 +29,10 @@ logger = get_logger(__name__)
 class NvidiaAIProvider(BaseAIProvider):
     """NVIDIA ASR/LLM Provider using the standard integrate.api.nvidia.com endpoint."""
 
-    def __init__(self) -> None:
+    def __init__(self, model_override: str | None = None) -> None:
         self._api_key: str = NVIDIA_API_KEY
         self._endpoint: str = "https://integrate.api.nvidia.com/v1/chat/completions"
+        self._model_override = model_override
 
     def get_name(self) -> str:
         return "nvidia"
@@ -41,7 +44,7 @@ class NvidiaAIProvider(BaseAIProvider):
         if not self.is_configured():
             raise AIProviderError("NVIDIA_API_KEY is not set.")
 
-        model = AI_MODEL if AI_MODEL and "/" in AI_MODEL else "nvidia/nemotron-3-ultra-550b-a55b"
+        model = self._model_override or NVIDIA_MOM_MODEL
         effective_max_tokens = max_tokens or AI_MAX_TOKENS
         logger.info("NVIDIA LLM query: model=%s, temp=%.2f, max_tokens=%d", model, AI_TEMPERATURE, effective_max_tokens)
 
@@ -60,6 +63,12 @@ class NvidiaAIProvider(BaseAIProvider):
             "max_tokens": effective_max_tokens,
             "top_p": AI_TOP_P,
         }
+        if "deepseek" in model.lower():
+            payload["extra_body"] = {"chat_template_kwargs": {"thinking": False}}
+        elif "glm-5.2" in model.lower():
+            payload["extra_body"] = {"chat_template_kwargs": {"enable_thinking": True, "clear_thinking": True}}
+        elif "nemotron" in model.lower():
+            payload["extra_body"] = {"chat_template_kwargs": {"enable_thinking": True}, "reasoning_budget": 16384}
 
         # NVIDIA NIM requests (especially for massive models like Nemotron-3-550B)
         # require a longer timeout limit than standard cloud models.
@@ -96,7 +105,7 @@ class NvidiaAIProvider(BaseAIProvider):
             finish_reason = choice.get("finish_reason")
             if finish_reason == "length":
                 logger.error("NVIDIA model output truncated: hit the output token limit (max_tokens).")
-                raise AIProviderError("NVIDIA response was truncated (reached output token limit).")
+                raise AIProviderTruncatedResponseError("NVIDIA response was truncated (reached output token limit).")
 
             completion = choice["message"]["content"]
             
@@ -127,4 +136,4 @@ class NvidiaAIProvider(BaseAIProvider):
         return self.generate_text(SYSTEM_PROMPT, user_prompt)
 
     def get_active_model(self, global_model: str) -> str:
-        return global_model if global_model and "/" in global_model else "nvidia/nemotron-3-ultra-550b-a55b"
+        return self._model_override or NVIDIA_MOM_MODEL

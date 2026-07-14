@@ -64,6 +64,11 @@ class AnalyzeRequest(BaseModel):
     ai_provider: Optional[str] = None
     context: Optional[str] = None
     attendees: Optional[str] = None  # Comma-separated attendee names entered by user
+    agenda: Optional[str] = None  # Meeting agenda pasted by user after STT
+    meeting_date: Optional[str] = None
+    absents: Optional[str] = None
+    chaired_by: Optional[str] = None
+    organization: Optional[str] = None
 
 
 
@@ -91,20 +96,44 @@ async def get_languages():
 @app.get("/api/ai-providers")
 async def get_ai_providers():
     """Return all registered AI providers and their configuration status."""
-    from config.settings import AI_PROVIDER
+    from config.settings import AI_MODEL, AI_PROVIDER, CHUNK_EXTRACTOR_MODEL, NVIDIA_MOM_MODEL
+
+    provider_models = {
+        "groq": [
+            CHUNK_EXTRACTOR_MODEL,
+            "llama-3.3-70b-versatile",
+            "openai/gpt-oss-20b",
+            "openai/gpt-oss-120b",
+        ],
+        "nvidia": [
+            "z-ai/glm-5.2",
+            "qwen/qwen3.5-122b-a10b",
+            "nvidia/nemotron-3-ultra-550b-a55b",
+            NVIDIA_MOM_MODEL,
+        ],
+        "gemini": [
+            "gemini-1.5-flash",
+        ],
+    }
 
     display_names = {
         "groq": "Groq (LLaMA)",
         "nvidia": "NVIDIA NIM",
         "gemini": "Google Gemini",
-        "ollama": "Ollama (Local)",
     }
     providers = []
     for name in ai_manager._providers:
+        models = []
+        for model in provider_models.get(name, []):
+            model_name = str(model or "").strip()
+            if model_name and model_name not in models:
+                models.append(model_name)
         providers.append({
             "name": name,
             "display_name": display_names.get(name, name.title()),
             "configured": ai_manager._providers[name].is_configured(),
+            "active_model": ai_manager._providers[name].get_active_model(AI_MODEL),
+            "models": models,
         })
     return {
         "providers": providers,
@@ -252,7 +281,7 @@ async def analyze_meeting_transcript(req: AnalyzeRequest):
         analysis_transcript = f"[Additional Context: {req.context.strip()}]\n\n{translated_transcript}"
         logger.info("Appended user context to transcript for AI analysis")
 
-    meeting_date = datetime.now().strftime("%Y-%m-%d")
+    meeting_date = (req.meeting_date or "").strip() or datetime.now().strftime("%Y-%m-%d")
     
     try:
         summary_result = ai_manager.analyze_meeting(
@@ -261,7 +290,12 @@ async def analyze_meeting_transcript(req: AnalyzeRequest):
             transcript=analysis_transcript,
             provider_override=req.ai_provider,
             attendees=req.attendees or None,
+            agenda=req.agenda or None,
         )
+        summary_result.meeting_date = meeting_date
+        summary_result.absents = (req.absents or "").strip() or "Nil"
+        summary_result.chaired_by = (req.chaired_by or "").strip() or ""
+        summary_result.organization = (req.organization or "").strip() or ""
     except Exception as e:
         logger.exception("AI meeting analysis failed")
         raise HTTPException(status_code=500, detail=f"AI analysis failed: {e}")
@@ -270,6 +304,7 @@ async def analyze_meeting_transcript(req: AnalyzeRequest):
         report_paths = report_manager.generate_reports(summary_result)
         pdf_path = Path(report_paths["pdf"])
         excel_path = Path(report_paths["excel"])
+        word_path = Path(report_paths["word"]) if report_paths.get("word") else None
     except Exception as e:
         logger.exception("Report generation failed")
         raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
@@ -278,6 +313,7 @@ async def analyze_meeting_transcript(req: AnalyzeRequest):
         "summary": summary_result.model_dump(),
         "pdf_url": f"/api/reports/pdf/{pdf_path.name}",
         "excel_url": f"/api/reports/excel/{excel_path.name}",
+        "word_url": f"/api/reports/word/{word_path.name}" if word_path else None,
         "translated_text": translated_transcript if is_translated else None
     }
 
@@ -357,6 +393,18 @@ async def download_excel_report(filename: str):
     return FileResponse(
         excel_file_path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=filename,
+    )
+
+@app.get("/api/reports/word/{filename}")
+async def download_word_report(filename: str):
+    """Retrieve and download a generated Word meeting report."""
+    word_file_path = Path(__file__).resolve().parent / "reports" / "word" / filename
+    if not word_file_path.exists():
+        raise HTTPException(status_code=404, detail="Word report file not found.")
+    return FileResponse(
+        word_file_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         filename=filename,
     )
 

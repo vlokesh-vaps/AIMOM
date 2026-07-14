@@ -12,3 +12,7 @@ models/__pycache__/
 services/__pycache__/
 services/stt/__pycache__/
 utils/__pycache__/
+reports/word
+reports/Software_MOM.xlsx
+reports/Software_Meeting.docx
+reports/VAPS_MoM_Software_Review.docx

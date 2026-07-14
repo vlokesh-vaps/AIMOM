@@ -114,19 +114,14 @@ REQUEST_TIMEOUT: int = 300  # seconds
 # ---------------------------------------------------------------------------
 GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 # Defaults for LLM Analysis
-AI_PROVIDER: str = os.getenv("AI_PROVIDER", "nvidia")  # nvidia, groq, gemini, ollama
+AI_PROVIDER: str = os.getenv("AI_PROVIDER", "nvidia")  # nvidia, groq, gemini
 AI_MODEL: str = os.getenv("AI_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
 AI_TEMPERATURE: float = float(os.getenv("AI_TEMPERATURE", "0.1"))
 AI_MAX_TOKENS: int = int(os.getenv("AI_MAX_TOKENS", "4096"))
 AI_TOP_P: float = float(os.getenv("AI_TOP_P", "1.0"))
 AI_TIMEOUT: int = int(os.getenv("AI_TIMEOUT", "60"))
-
-# Online Ollama configuration
-OLLAMA_API_KEY: str = os.getenv("OLLAMA_API_KEY", "")
-OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "")
 
 # LLM Reliability & Chunking settings
 LLM_MAX_RETRIES: int = int(os.getenv("LLM_MAX_RETRIES", "3"))
@@ -135,13 +130,21 @@ LLM_BACKOFF_FACTOR: float = float(os.getenv("LLM_BACKOFF_FACTOR", "2.0"))
 LLM_SAFETY_MARGIN: float = float(os.getenv("LLM_SAFETY_MARGIN", "0.9"))
 LLM_CHUNK_SIZE_TOKENS: int = int(os.getenv("LLM_CHUNK_SIZE_TOKENS", "900"))
 LLM_THROTTLE_DELAY: float = float(os.getenv("LLM_THROTTLE_DELAY", "2.0"))
+LLM_REQUEST_THROTTLE_SECONDS: float = float(os.getenv("LLM_REQUEST_THROTTLE_SECONDS", "0"))
+NVIDIA_REQUEST_THROTTLE_SECONDS: float = float(os.getenv("NVIDIA_REQUEST_THROTTLE_SECONDS", "30"))
 LLM_CHUNK_MIN_TOKENS: int = int(os.getenv("LLM_CHUNK_MIN_TOKENS", "700"))
 GROQ_RPM_LIMIT: int = int(os.getenv("GROQ_RPM_LIMIT", "30"))
 GROQ_TPM_LIMIT: int = int(os.getenv("GROQ_TPM_LIMIT", "12000"))
 
 # Pipeline-specific model overrides
-CHUNK_EXTRACTOR_MODEL: str = os.getenv("CHUNK_EXTRACTOR_MODEL", "llama-3.3-70b-versatile")
-FINAL_REVIEWER_MODEL: str = os.getenv("FINAL_REVIEWER_MODEL", "gemma4:latest")
+CHUNK_EXTRACTOR_MODEL: str = os.getenv("CHUNK_EXTRACTOR_MODEL", "openai/gpt-oss-120b")
+NVIDIA_MOM_MODEL: str = os.getenv("NVIDIA_MOM_MODEL", "z-ai/glm-5.2")
+AGENT1_MODEL: str = os.getenv("AGENT1_MODEL", "openai/gpt-oss-120b")
+AGENT2_MODEL: str = os.getenv("AGENT2_MODEL", "qwen/qwen3.5-122b-a10b")
+AGENT3_MODEL: str = os.getenv("AGENT3_MODEL", "z-ai/glm-5.2")
+AGENT4_MODEL: str = os.getenv("AGENT4_MODEL", "z-ai/glm-5.2")
+AGENT5_MODEL: str = os.getenv("AGENT5_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
+AGENT6_MODEL: str = os.getenv("AGENT6_MODEL", "openai/gpt-oss-120b")
 
 # ---------------------------------------------------------------------------
 # Phase 4: Report Generation Settings

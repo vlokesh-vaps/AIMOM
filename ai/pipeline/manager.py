@@ -6,7 +6,7 @@ Pipeline stages:
   3. Chunk Extractor      (Groq + openai/gpt-oss-20b)
   4. Merge Engine         (pure Python)
   5. Validation Layer     (pure Python)
-  6. Final Reviewer       (Ollama + gemma4:latest, optional)
+  6. Final result          (validated summary)
 """
 
 import hashlib
@@ -15,15 +15,18 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from config.settings import (
+    AI_MODEL,
+    AI_PROVIDER,
     LLM_MAX_RETRIES,
     LLM_INITIAL_BACKOFF,
     LLM_BACKOFF_FACTOR,
     LLM_SAFETY_MARGIN,
     LLM_CHUNK_SIZE_TOKENS,
     CHUNK_EXTRACTOR_MODEL,
-    FINAL_REVIEWER_MODEL,
     GROQ_RPM_LIMIT,
     GROQ_TPM_LIMIT,
+    NVIDIA_MOM_MODEL,
+    NVIDIA_REQUEST_THROTTLE_SECONDS,
 )
 from ai.providers.base import (
     BaseAIProvider,
@@ -35,7 +38,6 @@ from ai.providers.base import (
 from ai.providers.nvidia import NvidiaAIProvider
 from ai.providers.groq import GroqAIProvider
 from ai.providers.gemini import GeminiAIProvider
-from ai.providers.ollama import OllamaAIProvider
 from ai.models.meeting import MeetingSummary
 from ai.utils.checkpoints import ChunkCheckpointStore
 from ai.utils.rate_limiter import ProviderRequestScheduler
@@ -47,7 +49,7 @@ from ai.stages.chunking_engine import ChunkingEngine
 from ai.stages.chunk_extractor import ChunkExtractor
 from ai.stages.merge_engine import MergeEngine
 from ai.validators.validation_layer import ValidationLayer
-from ai.stages.final_reviewer import FinalReviewer
+from ai.pipeline.six_agent_pipeline import SixAgentPipeline
 
 from utils.logger import get_logger
 
@@ -117,8 +119,8 @@ def get_model_limits(provider_name: str, model_name: str) -> tuple[int, int]:
         "llama-3.3-70b-versatile": (128000, 12000),
         "llama-3.1-8b-instant": (128000, 30000),
         "openai/gpt-oss-20b": (128000, 12000),
+        "openai/gpt-oss-120b": (128000, 12000),
         "gemini": (1048576, 1000000),
-        "ollama": (8192, 1000000),
     }
 
     m_lower = model_name.lower()
@@ -126,13 +128,15 @@ def get_model_limits(provider_name: str, model_name: str) -> tuple[int, int]:
         return MODEL_LIMITS["nvidia/nemotron-3-ultra-550b-a55b"]
     elif "gpt-oss-20b" in m_lower:
         return MODEL_LIMITS["openai/gpt-oss-20b"]
+    elif "gpt-oss-120b" in m_lower:
+        return MODEL_LIMITS["openai/gpt-oss-120b"]
     elif "llama-3.3-70b" in m_lower or "llama3.3" in m_lower:
         return MODEL_LIMITS["llama-3.3-70b-versatile"]
     elif "llama-3.1-8b" in m_lower or "llama3.1" in m_lower:
         return MODEL_LIMITS["llama-3.1-8b-instant"]
     elif "gemini" in m_lower:
         return MODEL_LIMITS["gemini"]
-    elif "ollama" in m_lower or "qwen" in m_lower or "gemma" in m_lower:
+    elif "qwen" in m_lower:
         return (32768, 1000000)
 
     p_lower = provider_name.lower()
@@ -142,9 +146,6 @@ def get_model_limits(provider_name: str, model_name: str) -> tuple[int, int]:
         return (128000, 12000)
     elif p_lower == "gemini":
         return (1048576, 1000000)
-    elif p_lower == "ollama":
-        return (8192, 1000000)
-
     return (8192, 1000000)
 
 
@@ -174,10 +175,10 @@ class AIManager:
     def _build_run_queue(self, provider_override: str | None = None) -> List[str]:
         """Build the failover queue of configured providers in order of preference.
 
-        Preferred order: Groq -> Ollama -> NVIDIA -> Gemini -> others.
+        Preferred order: Groq -> NVIDIA -> Gemini -> others.
         If provider_override is specified, it is placed at the front.
         """
-        preferred_order = ["groq", "ollama", "nvidia", "gemini"]
+        preferred_order = ["groq", "nvidia", "gemini"]
 
         available_configured = [
             name for name, provider in self._providers.items()
@@ -263,6 +264,7 @@ class AIManager:
         max_retries: int = 3,
         provider_override: str | None = None,
         attendees: Optional[str] = None,
+        agenda: Optional[str] = None,
     ) -> MeetingSummary:
         """Analyze meeting transcript using the 6-stage pipeline.
 
@@ -272,11 +274,43 @@ class AIManager:
           3. Chunk Extractor      — structured JSON via Groq (openai/gpt-oss-20b)
           4. Merge Engine         — combine chunk outputs without loss
           5. Validation Layer     — verify completeness and consistency
-          6. Final Reviewer       — polish via Ollama (gemma4:latest)
+          6. Final result         — return the validated summary
         """
+        selected_name = (provider_override or AI_PROVIDER or "groq").lower()
+        selected_provider = self._providers.get(selected_name)
+        if selected_provider and selected_provider.is_configured():
+            if selected_name == "nvidia":
+                groq = self._providers.get("groq")
+                if groq and groq.is_configured():
+                    return SixAgentPipeline(
+                        providers=self._providers,
+                        retry_fn=self._execute_with_transient_retry,
+                    ).run(
+                        title=title,
+                        date=date,
+                        transcript=transcript,
+                        attendees=attendees,
+                        agenda=agenda,
+                    )
+                selected_provider = NvidiaAIProvider(model_override=NVIDIA_MOM_MODEL)
+            elif selected_name == "groq":
+                selected_provider = GroqAIProvider(model_override=CHUNK_EXTRACTOR_MODEL)
+            logger.info("Stage 3 extraction provider: %s + %s", selected_name, selected_provider.get_active_model(AI_MODEL))
+            return self._execute_pipeline(
+                provider=selected_provider,
+                title=title,
+                date=date,
+                transcript=transcript,
+                speaker_transcript=speaker_transcript,
+                attendees=attendees,
+                agenda=agenda,
+                chunk_checkpoint={},
+                failed_providers=set(),
+            )
+
         groq = self._providers.get("groq")
         if not groq or not groq.is_configured():
-            raise AIProviderError("Groq is required for Stage 3 extraction. Set GROQ_API_KEY.")
+            raise AIProviderError(f"AI provider '{selected_name}' is not configured, and Groq fallback is unavailable.")
 
         logger.info("=" * 70)
         logger.info("6-STAGE PIPELINE — Starting meeting analysis")
@@ -289,6 +323,7 @@ class AIManager:
             transcript=transcript,
             speaker_transcript=speaker_transcript,
             attendees=attendees,
+            agenda=agenda,
             chunk_checkpoint={},
             failed_providers=set(),
         )
@@ -305,6 +340,7 @@ class AIManager:
         transcript: str,
         speaker_transcript: Optional[str],
         attendees: Optional[str] = None,
+        agenda: Optional[str] = None,
         chunk_checkpoint: Optional[dict] = None,
         failed_providers: Optional[set] = None,
     ) -> MeetingSummary:
@@ -348,17 +384,21 @@ class AIManager:
         logger.info("Stage 2 complete: %d chunks. (%.2fs)", len(chunks), time.time() - stage2_start)
 
         # ── STAGE 3: Chunk Extractor (Groq / openai/gpt-oss-20b) ────────
-        logger.info("─── STAGE 3: Chunk Extractor (Groq + %s) ───", CHUNK_EXTRACTOR_MODEL)
+        chunk_extractor_provider = provider
+        logger.info(
+            "─── STAGE 3: Chunk Extractor (%s + %s) ───",
+            chunk_extractor_provider.get_name(),
+            chunk_extractor_provider.get_active_model(AI_MODEL),
+        )
         stage3_start = time.time()
 
-        chunk_extractor_provider = self._get_chunk_extractor_provider(failed_providers)
         checkpoint_store = ChunkCheckpointStore(
             run_id=f"{title}_{date}_{hashlib.sha256(cleaned_text.encode('utf-8')).hexdigest()[:16]}",
         )
         scheduler = ProviderRequestScheduler(
             provider_name=chunk_extractor_provider.get_name(),
-            rpm_limit=GROQ_RPM_LIMIT,
-            tpm_limit=GROQ_TPM_LIMIT,
+            rpm_limit=GROQ_RPM_LIMIT if chunk_extractor_provider.get_name() == "groq" else 60,
+            tpm_limit=GROQ_TPM_LIMIT if chunk_extractor_provider.get_name() == "groq" else 1000000,
             max_concurrent=1,
             safety_margin=LLM_SAFETY_MARGIN,
         )
@@ -368,20 +408,26 @@ class AIManager:
             retry_fn=self._execute_with_transient_retry,
             scheduler=scheduler,
             checkpoint_store=checkpoint_store,
-            max_output_tokens=900,
+            max_output_tokens=4096,
+            throttle_seconds=(NVIDIA_REQUEST_THROTTLE_SECONDS if chunk_extractor_provider.get_name() == "nvidia" else None),
         )
         extractions = extractor.extract_all(
             chunks=chunks,
             title=title,
             date=date,
             chunk_checkpoint=chunk_checkpoint,
+            agenda=agenda,
+            attendees=attendees,
         )
         logger.info("Stage 3 complete: %d extractions. (%.2fs)", len(extractions), time.time() - stage3_start)
 
         # ── STAGE 4: Merge Engine ────────────────────────────────────────
         logger.info("─── STAGE 4: Merge Engine ───")
         stage4_start = time.time()
-        merge_engine = MergeEngine()
+        merge_engine = MergeEngine(
+            provider=chunk_extractor_provider,
+            retry_fn=self._execute_with_transient_retry,
+        )
         merged_summary = merge_engine.merge(
             extractions=extractions,
             title=title,
@@ -402,22 +448,9 @@ class AIManager:
             time.time() - stage5_start,
         )
 
-        # ── STAGE 6: Final Reviewer (Ollama / gemma4:latest) ─────────────
-        logger.info("─── STAGE 6: Final Reviewer (Ollama + %s) ───", FINAL_REVIEWER_MODEL)
-        stage6_start = time.time()
-
-        ollama_provider = self._providers.get("ollama")
-        if ollama_provider:
-            reviewer = FinalReviewer(
-                provider=ollama_provider,
-                retry_fn=self._execute_with_transient_retry,
-            )
-            final_summary = reviewer.review(validation_result.summary)
-        else:
-            logger.warning("Ollama provider not registered. Skipping Stage 6.")
-            final_summary = validation_result.summary
-
-        logger.info("Stage 6 complete. (%.2fs)", time.time() - stage6_start)
+        # ── STAGE 6: Final result ────────────────────────────────────────
+        final_summary = validation_result.summary
+        logger.info("Stage 6 complete: using validated summary.")
 
         # ── Pipeline complete ────────────────────────────────────────────
         total_time = time.time() - pipeline_start
@@ -441,7 +474,6 @@ class AIManager:
         self.register("groq", GroqAIProvider())
         self.register("nvidia", NvidiaAIProvider())
         self.register("gemini", GeminiAIProvider())
-        self.register("ollama", OllamaAIProvider())
 
     def _get_chunk_extractor_provider(self, failed_providers: set) -> BaseAIProvider:
         """Get the provider for Stage 3 chunk extraction.
@@ -467,11 +499,32 @@ class AIManager:
         while attempt <= LLM_MAX_RETRIES:
             try:
                 return provider.generate_text(system_prompt, user_prompt, max_tokens=max_tokens)
-            except AIProviderTruncatedResponseError:
-                raise
+            except AIProviderTruncatedResponseError as truncated_exc:
+                if attempt >= LLM_MAX_RETRIES:
+                    logger.error(
+                        "[%s] Truncated response after %d retries.",
+                        provider.get_name(),
+                        LLM_MAX_RETRIES,
+                    )
+                    raise
+                retry_tokens = None
+                if max_tokens:
+                    retry_tokens = min(max(int(max_tokens * 1.5), max_tokens + 512), 16384)
+                logger.warning(
+                    "[%s] Truncated response (attempt %d/%d). Retrying with max_tokens=%s.",
+                    provider.get_name(),
+                    attempt + 1,
+                    LLM_MAX_RETRIES,
+                    retry_tokens or "provider default",
+                )
+                if retry_tokens:
+                    max_tokens = retry_tokens
+                attempt += 1
+                time.sleep(backoff)
+                backoff *= LLM_BACKOFF_FACTOR
             except (AIProviderRateLimitError, AIProviderTimeoutError) as transient_exc:
                 is_rate_limit = isinstance(transient_exc, AIProviderRateLimitError)
-                sleep_time = max(backoff, 30.0) if is_rate_limit else backoff
+                sleep_time = max(backoff, 70.0) if is_rate_limit else backoff
                 logger.warning(
                     "[%s] Transient exception: %s (attempt %d/%d). Backing off for %.2fs...",
                     provider.get_name(),
@@ -496,7 +549,7 @@ class AIManager:
 
                 if is_transient and attempt < LLM_MAX_RETRIES:
                     is_rate_limit = any(ind in exc_msg for ind in ("rate_limit", "resourceexhausted"))
-                    sleep_time = max(backoff, 30.0) if is_rate_limit else backoff
+                    sleep_time = max(backoff, 70.0) if is_rate_limit else backoff
                     logger.warning(
                         "[%s] Detected transient API error: %s (attempt %d/%d). Backing off for %.2fs...",
                         provider.get_name(),

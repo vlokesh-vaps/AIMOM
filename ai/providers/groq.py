@@ -28,6 +28,7 @@ logger = get_logger(__name__)
 # Models hosted on Groq that are valid despite having slashes in the name.
 _GROQ_HOSTED_MODELS = {
     "openai/gpt-oss-20b",
+    "openai/gpt-oss-120b",
 }
 
 
