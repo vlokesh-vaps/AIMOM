@@ -136,7 +136,7 @@ def get_model_limits(provider_name: str, model_name: str) -> tuple[int, int]:
         return MODEL_LIMITS["llama-3.1-8b-instant"]
     elif "gemini" in m_lower:
         return MODEL_LIMITS["gemini"]
-    elif "qwen" in m_lower:
+    elif "deepseek" in m_lower:
         return (32768, 1000000)
 
     p_lower = provider_name.lower()

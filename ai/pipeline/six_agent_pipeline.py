@@ -100,6 +100,8 @@ class SixAgentPipeline:
             actions.extend(self._json_list(action_response, "action_items"))
             logger.info("Agents 2-4 completed chunk %d/%d.", index, len(clean_chunks))
 
+        actions = self._deduplicate_action_dicts(actions)
+
         decisions_input = json.dumps(
             {"topics": topics, "discussion_points": discussions, "action_items": actions},
             ensure_ascii=False,
@@ -146,10 +148,10 @@ class SixAgentPipeline:
     def _system_prompt(number: int) -> str:
         prompts = {
             1: "Clean meeting transcript text. Preserve speaker names, facts, dates, and meaning. Return only JSON: {\"cleaned_text\": \"...\"}.",
-            2: "Segment topics and identify links between topics or escalations spanning topics. Return JSON with topics and cross_topic_context. Never invent links.",
-            3: "Extract discussion_points with point, detailed_summary, agenda_item, decision, status, authority_context, tone_and_consequence, cross_topic_context, and implicit_decision. Capture who said what and their authority. Capture final warning, last chance, urgency, and consequences. Record an implicit decision only with explicit agreement, acceptance, or no-objection evidence; never infer from silence alone.",
-            4: "Extract action_items with task, owner, target_date, priority, status, agenda_item, authority_context, and tone_and_consequence. Capture who assigned or authorized the action and any warning or consequence. Never invent owner or deadline.",
-            5: "Synthesize executive_summary, decisions, implicit_decisions, cross_topic_context, tone_and_consequences, risks, pending_items, and topics_covered. Preserve authority, escalation links, tone, and consequences. Include implicit decisions only when explicitly supported by agreement, acceptance, or no-objection evidence.",
+            2: "Segment topics for the MoM report. Return JSON with topics containing the exact agenda field and cross_topic_context. Never invent links.",
+            3: "Extract every discussion for the MoM report. Return JSON with discussion_points containing agenda_item (report Agenda), point and detailed_summary (report Discussion), and decision. Keep the discussion factual and complete. Do not invent information.",
+            4: "Extract every action for the MoM report. Return JSON with action_items containing agenda_item (report Agenda), task (report Action Item), owner (report Assigned), and target_date (report Target Date). The owner must be a real name from the attendee list when assigned. Copy the exact date or timeline stated in the transcript. If no owner or date is explicitly given, return an empty string. Never guess.",
+            5: "Synthesize the final MoM facts for the report fields Agenda, Discussion, Action Item, Assigned, and Target Date. Verify that every action has the correct assigned person and exact stated date. Do not invent missing owners or dates. Do not generate S.No; the application assigns it.",
             6: "Validate the supplied meeting summary for missing or inconsistent facts. Return only JSON: {\"valid\": true, \"issues\": [], \"suggestions\": []}. Do not rewrite the summary.",
         }
         return prompts[number]
@@ -182,6 +184,39 @@ class SixAgentPipeline:
     def _json_list(raw: str, key: str) -> list[dict]:
         value = SixAgentPipeline._json_object(raw).get(key, [])
         return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+    @staticmethod
+    def _deduplicate_action_dicts(actions: list[dict]) -> list[dict]:
+        from difflib import SequenceMatcher
+        deduped = []
+        for action in actions:
+            task = str(action.get("task", "")).strip()
+            if not task:
+                continue
+            
+            owner = str(action.get("owner", "")).strip()
+            target_date = str(action.get("target_date", action.get("deadline", ""))).strip()
+            
+            is_duplicate = False
+            for existing in deduped:
+                existing_task = str(existing.get("task", "")).strip()
+                existing_owner = str(existing.get("owner", "")).strip()
+                
+                similarity = SequenceMatcher(None, task.lower(), existing_task.lower()).ratio()
+                if similarity > 0.85 or (task == existing_task and owner == existing_owner):
+                    is_duplicate = True
+                    if not existing_owner and owner:
+                        existing["owner"] = owner
+                    if not existing.get("target_date") and target_date:
+                        existing["target_date"] = target_date
+                    if len(task) > len(existing_task):
+                        existing["task"] = task
+                    break
+                    
+            if not is_duplicate:
+                deduped.append(action)
+                
+        return deduped
 
     @staticmethod
     def _build_summary(title, date, attendees, topics, discussions, actions, decisions) -> MeetingSummary:

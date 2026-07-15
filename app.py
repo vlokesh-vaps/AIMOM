@@ -93,52 +93,8 @@ async def get_languages():
     return {"languages": LANGUAGE_OPTIONS}
 
 
-@app.get("/api/ai-providers")
-async def get_ai_providers():
-    """Return all registered AI providers and their configuration status."""
-    from config.settings import AI_MODEL, AI_PROVIDER, CHUNK_EXTRACTOR_MODEL, NVIDIA_MOM_MODEL
 
-    provider_models = {
-        "groq": [
-            CHUNK_EXTRACTOR_MODEL,
-            "llama-3.3-70b-versatile",
-            "openai/gpt-oss-20b",
-            "openai/gpt-oss-120b",
-        ],
-        "nvidia": [
-            "z-ai/glm-5.2",
-            "qwen/qwen3.5-122b-a10b",
-            "nvidia/nemotron-3-ultra-550b-a55b",
-            NVIDIA_MOM_MODEL,
-        ],
-        "gemini": [
-            "gemini-1.5-flash",
-        ],
-    }
 
-    display_names = {
-        "groq": "Groq (LLaMA)",
-        "nvidia": "NVIDIA NIM",
-        "gemini": "Google Gemini",
-    }
-    providers = []
-    for name in ai_manager._providers:
-        models = []
-        for model in provider_models.get(name, []):
-            model_name = str(model or "").strip()
-            if model_name and model_name not in models:
-                models.append(model_name)
-        providers.append({
-            "name": name,
-            "display_name": display_names.get(name, name.title()),
-            "configured": ai_manager._providers[name].is_configured(),
-            "active_model": ai_manager._providers[name].get_active_model(AI_MODEL),
-            "models": models,
-        })
-    return {
-        "providers": providers,
-        "default": (AI_PROVIDER or "nvidia").lower(),
-    }
 
 
 @app.post("/api/transcribe")

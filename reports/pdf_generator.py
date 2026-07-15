@@ -137,9 +137,10 @@ class PDFGenerator:
             rows.append(
                 f"""
                 <tr>
-                    <td>{PDFGenerator._html(f"{idx}. {agenda}")}</td>
-                    <td>{actions_html}</td>
+                    <td class="center">{idx}</td>
+                    <td>{PDFGenerator._html(agenda)}</td>
                     <td>{summary_html}</td>
+                    <td>{actions_html}</td>
                     <td>{assigned_html}</td>
                     <td>{date_html}</td>
                 </tr>
@@ -156,9 +157,10 @@ class PDFGenerator:
             rows.append(
                 f"""
                 <tr>
-                    <td>{PDFGenerator._html(f"{next_index}. {agenda}")}</td>
-                    <td>{PDFGenerator._html(PDFGenerator._get(item, "task", ""))}</td>
+                    <td class="center">{next_index}</td>
+                    <td>{PDFGenerator._html(agenda)}</td>
                     <td></td>
+                    <td>{PDFGenerator._html(PDFGenerator._get(item, "task", ""))}</td>
                     <td>{PDFGenerator._html(PDFGenerator._get(item, "owner", ""))}</td>
                     <td>{PDFGenerator._html(PDFGenerator._get(item, "target_date", ""))}</td>
                 </tr>
@@ -167,7 +169,7 @@ class PDFGenerator:
             next_index += 1
 
         if not rows:
-            return "<tr><td colspan='5' align='center'>No detailed records found.</td></tr>"
+            return "<tr><td colspan='6' align='center'>No detailed records found.</td></tr>"
         return "\n".join(rows)
 
     @staticmethod

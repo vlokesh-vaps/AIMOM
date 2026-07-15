@@ -73,14 +73,15 @@ class WordGenerator:
 
         doc.add_paragraph("")
 
-        table = doc.add_table(rows=1, cols=5)
+        table = doc.add_table(rows=1, cols=6)
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
         table.style = "Table Grid"
 
         headers = [
-            "Agenda / Discussion Item",
+            "S.No",
+            "Agenda",
+            "Discussion",
             "Action Item",
-            "Details / Discussion Summary",
             "Assigned",
             "Target Date",
         ]
@@ -96,19 +97,20 @@ class WordGenerator:
                     run.font.size = Pt(9)
                     run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
 
-        for agenda, action_text, summary_text, owner_text, date_text in self._build_rows(summary_data):
+        for serial, agenda, summary_text, action_text, owner_text, date_text in self._build_rows(summary_data):
             row = table.add_row().cells
-            row[0].text = agenda
-            row[1].text = action_text
+            row[0].text = str(serial)
+            row[1].text = agenda
             row[2].text = summary_text
-            row[3].text = owner_text
-            row[4].text = date_text
+            row[3].text = action_text
+            row[4].text = owner_text
+            row[5].text = date_text
             for cell in row:
                 for paragraph in cell.paragraphs:
                     for run in paragraph.runs:
                         run.font.size = Pt(9)
 
-        widths = [Cm(4.8), Cm(5.0), Cm(8.6), Cm(3.4), Cm(3.2)]
+        widths = [Cm(1.2), Cm(4.2), Cm(7.4), Cm(5.8), Cm(3.4), Cm(3.2)]
         for row in table.rows:
             for idx, width in enumerate(widths):
                 row.cells[idx].width = width
@@ -148,7 +150,7 @@ class WordGenerator:
                     run.font.size = Pt(9)
 
     @staticmethod
-    def _build_rows(summary_data: dict) -> list[tuple[str, str, str, str, str]]:
+    def _build_rows(summary_data: dict) -> list[tuple[int, str, str, str, str, str]]:
         discussion_points = summary_data.get("discussion_points", [])
         action_items = summary_data.get("action_items", [])
         actions_by_agenda: dict[str, list] = {}
@@ -156,13 +158,13 @@ class WordGenerator:
             agenda = WordGenerator._get(item, "agenda_item", "").strip() or "Off Agenda Discussion"
             actions_by_agenda.setdefault(agenda, []).append(item)
 
-        rows: list[tuple[str, str, str, str, str]] = []
+        rows: list[tuple[int, str, str, str, str, str]] = []
         used_action_ids: set[int] = set()
 
         for idx, dp in enumerate(discussion_points, start=1):
             agenda = WordGenerator._get(dp, "agenda_item", "Off Agenda Discussion").strip() or "Off Agenda Discussion"
             matched = actions_by_agenda.get(agenda, [])
-            agenda_label = f"{idx}. {agenda}" if agenda != "Off Agenda Discussion" else f"{idx}. Off Agenda Discussion"
+            agenda_label = agenda
             action_text = WordGenerator._join_lines(WordGenerator._get(ai, "task", "") for ai in matched)
             if not action_text:
                 fallback_task = WordGenerator._get(dp, "task", "")
@@ -182,7 +184,7 @@ class WordGenerator:
             if not date_text:
                 date_text = WordGenerator._get(dp, "deadline", "Not Specified")
 
-            rows.append((agenda_label, action_text or "No Action Item", summary_text, owner_text, date_text))
+            rows.append((idx, agenda_label, summary_text, action_text or "No Action Item", owner_text, date_text))
             for item in matched:
                 used_action_ids.add(id(item))
 
@@ -192,9 +194,10 @@ class WordGenerator:
                 continue
             agenda = WordGenerator._get(item, "agenda_item", "").strip() or "Off Agenda Discussion"
             rows.append((
-                f"{next_index}. {agenda}",
-                WordGenerator._get(item, "task", ""),
+                next_index,
+                agenda,
                 "",
+                WordGenerator._get(item, "task", ""),
                 WordGenerator._get(item, "owner", ""),
                 WordGenerator._get(item, "target_date", ""),
             ))

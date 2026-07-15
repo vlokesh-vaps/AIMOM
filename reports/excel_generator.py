@@ -33,21 +33,21 @@ class ExcelGenerator:
         ws.views.sheetView[0].showGridLines = True
 
         styles = self._make_styles()
-        headers = ["Sl. No.", "Topic", "Detailed Action Item", "Owner", "Timeline"]
+        headers = ["S.No", "Agenda", "Discussion", "Action Item", "Assigned", "Target Date"]
         ws.append(headers)
         self._style_header_row(ws, styles)
 
         rows = self._build_rows(summary_data)
         if not rows:
-            rows = [["-", "No agenda items captured.", "", "", ""]]
+            rows = [["-", "No agenda items captured.", "", "", "", ""]]
 
         for row_index, row in enumerate(rows, start=2):
             ws.append(row)
             self._style_data_row(ws, row_index, styles)
 
         ws.freeze_panes = "A2"
-        ws.auto_filter.ref = f"A1:E{max(ws.max_row, 2)}"
-        self._set_widths(ws, {"A": 10, "B": 30, "C": 95, "D": 34, "E": 20})
+        ws.auto_filter.ref = f"A1:F{max(ws.max_row, 2)}"
+        self._set_widths(ws, {"A": 9, "B": 28, "C": 58, "D": 58, "E": 30, "F": 20})
 
         wb.save(str(output_path))
 
@@ -80,10 +80,12 @@ class ExcelGenerator:
             owners = ExcelGenerator._join_unique(ExcelGenerator._get(ai, "owner", "") for ai in matched_actions)
             timeline = ExcelGenerator._join_unique(ExcelGenerator._get(ai, "target_date", "") for ai in matched_actions)
 
+            discussion = ExcelGenerator._build_discussion_text(dp)
             rows.append([
                 index,
                 agenda,
-                action_text,
+                discussion,
+                action_text or "No Action Item",
                 owners or ExcelGenerator._get(dp, "assigned_to", "Not Specified"),
                 timeline or ExcelGenerator._get(dp, "deadline", "Not Specified"),
             ])
@@ -99,6 +101,7 @@ class ExcelGenerator:
             rows.append([
                 next_index,
                 agenda,
+                "",
                 ExcelGenerator._get(item, "task", ""),
                 ExcelGenerator._get(item, "owner", ""),
                 ExcelGenerator._get(item, "target_date", ""),
@@ -109,31 +112,24 @@ class ExcelGenerator:
 
     @staticmethod
     def _build_action_text(discussion_point, action_items: list) -> str:
-        parts: list[str] = []
-
-        point = ExcelGenerator._get(discussion_point, "point", "").strip()
-        summary = ExcelGenerator._get(discussion_point, "detailed_summary", "").strip()
-        decision = ExcelGenerator._get(discussion_point, "decision", "").strip()
-
-        if point:
-            parts.append(point)
-        if summary and summary != point:
-            parts.append(summary)
-        if decision and decision != "No Decision Taken":
-            parts.append(f"Decision: {decision}")
-
         tasks = [ExcelGenerator._get(item, "task", "").strip() for item in action_items]
         tasks = [task for task in tasks if task]
         if tasks:
-            if parts:
-                parts.append("")
-            parts.extend(tasks)
-        elif not parts:
-            fallback_task = ExcelGenerator._get(discussion_point, "task", "").strip()
-            if fallback_task and fallback_task != "No Action Item":
-                parts.append(fallback_task)
+            return "\n".join(tasks)
+        fallback_task = ExcelGenerator._get(discussion_point, "task", "").strip()
+        return fallback_task if fallback_task and fallback_task != "No Action Item" else ""
 
-        return "\n".join(parts).strip()
+    @staticmethod
+    def _build_discussion_text(discussion_point) -> str:
+        point = ExcelGenerator._get(discussion_point, "point", "").strip()
+        summary = ExcelGenerator._get(discussion_point, "detailed_summary", "").strip()
+        decision = ExcelGenerator._get(discussion_point, "decision", "").strip()
+        parts = [value for value in (point, summary) if value and value != point]
+        if point:
+            parts.insert(0, point)
+        if decision and decision != "No Decision Taken":
+            parts.append(f"Decision: {decision}")
+        return "\n".join(dict.fromkeys(parts)).strip()
 
     @staticmethod
     def _make_styles() -> dict:
@@ -158,7 +154,7 @@ class ExcelGenerator:
 
     @staticmethod
     def _style_header_row(ws, styles: dict) -> None:
-        for column in range(1, 6):
+        for column in range(1, 7):
             cell = ws.cell(row=1, column=column)
             cell.font = styles["header_font"]
             cell.fill = styles["header_fill"]
@@ -168,7 +164,7 @@ class ExcelGenerator:
 
     @staticmethod
     def _style_data_row(ws, row_index: int, styles: dict) -> None:
-        for column in range(1, 6):
+        for column in range(1, 7):
             cell = ws.cell(row=row_index, column=column)
             cell.font = styles["data_font"]
             cell.border = styles["border"]
