@@ -123,28 +123,63 @@ AI_MAX_TOKENS: int = int(os.getenv("AI_MAX_TOKENS", "4096"))
 AI_TOP_P: float = float(os.getenv("AI_TOP_P", "1.0"))
 AI_TIMEOUT: int = int(os.getenv("AI_TIMEOUT", "60"))
 
+# ---------------------------------------------------------------------------
+# Ollama settings
+# ---------------------------------------------------------------------------
+OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_API_KEY: str = os.getenv("OLLAMA_API_KEY", "")
+OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "gemma4:latest")
+
+# ---------------------------------------------------------------------------
 # LLM Reliability & Chunking settings
+# ---------------------------------------------------------------------------
 LLM_MAX_RETRIES: int = int(os.getenv("LLM_MAX_RETRIES", "3"))
 LLM_INITIAL_BACKOFF: float = float(os.getenv("LLM_INITIAL_BACKOFF", "2.0"))
 LLM_BACKOFF_FACTOR: float = float(os.getenv("LLM_BACKOFF_FACTOR", "2.0"))
-LLM_SAFETY_MARGIN: float = float(os.getenv("LLM_SAFETY_MARGIN", "0.9"))
 LLM_CHUNK_SIZE_TOKENS: int = int(os.getenv("LLM_CHUNK_SIZE_TOKENS", "900"))
-LLM_THROTTLE_DELAY: float = float(os.getenv("LLM_THROTTLE_DELAY", "2.0"))
-LLM_REQUEST_THROTTLE_SECONDS: float = float(os.getenv("LLM_REQUEST_THROTTLE_SECONDS", "0"))
-NVIDIA_REQUEST_THROTTLE_SECONDS: float = float(os.getenv("NVIDIA_REQUEST_THROTTLE_SECONDS", "30"))
-LLM_CHUNK_MIN_TOKENS: int = int(os.getenv("LLM_CHUNK_MIN_TOKENS", "700"))
-GROQ_RPM_LIMIT: int = int(os.getenv("GROQ_RPM_LIMIT", "30"))
-GROQ_TPM_LIMIT: int = int(os.getenv("GROQ_TPM_LIMIT", "12000"))
 
-# Pipeline-specific model overrides
-CHUNK_EXTRACTOR_MODEL: str = os.getenv("CHUNK_EXTRACTOR_MODEL", "openai/gpt-oss-120b")
+# ---------------------------------------------------------------------------
+# ProviderManager — failover & retry settings
+# ---------------------------------------------------------------------------
+PROVIDER_MAX_RETRIES: int = int(os.getenv("PROVIDER_MAX_RETRIES", "3"))
+PROVIDER_INITIAL_BACKOFF: float = float(os.getenv("PROVIDER_INITIAL_BACKOFF", "2.0"))
+PROVIDER_BACKOFF_FACTOR: float = float(os.getenv("PROVIDER_BACKOFF_FACTOR", "2.0"))
+PROVIDER_HEALTH_CHECK_INTERVAL: float = float(os.getenv("PROVIDER_HEALTH_CHECK_INTERVAL", "60"))
+PROVIDER_COOLDOWN_SECONDS: float = float(os.getenv("PROVIDER_COOLDOWN_SECONDS", "30.0"))
+
+# ---------------------------------------------------------------------------
+# Async Extraction Pipeline settings
+# ---------------------------------------------------------------------------
+# Max chunks processed concurrently (bounded by asyncio.Semaphore)
+MAX_CONCURRENT_EXTRACTIONS: int = int(os.getenv("MAX_CONCURRENT_EXTRACTIONS", "3"))
+# Model used for per-chunk structured extraction (NVIDIA primary)
+EXTRACTION_MODEL: str = os.getenv("EXTRACTION_MODEL", "deepseek-ai/deepseek-v4-flash")
+# Model used for final business-language synthesis (NVIDIA primary)
+SYNTHESIS_MODEL: str = os.getenv("SYNTHESIS_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
+# Max output tokens for extraction (compact output to avoid truncation)
+EXTRACTION_MAX_TOKENS: int = int(os.getenv("EXTRACTION_MAX_TOKENS", "2048"))
+# Max output tokens for final synthesis
+SYNTHESIS_MAX_TOKENS: int = int(os.getenv("SYNTHESIS_MAX_TOKENS", "3072"))
+# Prompt version tag stored in checkpoints for invalidation
+PROMPT_VERSION: str = os.getenv("PROMPT_VERSION", "v2.0")
+# Checkpoint directory
+CHECKPOINT_DIR: Path = TEMP_DIR / "checkpoints"
+
+# ---------------------------------------------------------------------------
+# 4-Agent pipeline model assignments
+# ---------------------------------------------------------------------------
+# Agent 1: Topic Segmentation (NVIDIA DeepSeek)
+AGENT1_MODEL: str = os.getenv("AGENT1_MODEL", "deepseek-ai/deepseek-v4-flash")
+# Agent 2: Discussion + Action Extraction (NVIDIA GLM)
+AGENT2_MODEL: str = os.getenv("AGENT2_MODEL", "z-ai/glm-5.2")
+# Agent 3: Final Synthesis (NVIDIA Nemotron)
+AGENT3_MODEL: str = os.getenv("AGENT3_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
+# Agent 4: Validation (Groq — optional, never blocks)
+AGENT4_MODEL: str = os.getenv("AGENT4_MODEL", "openai/gpt-oss-120b")
+# Default NVIDIA model for non-agent calls (translation, etc.)
 NVIDIA_MOM_MODEL: str = os.getenv("NVIDIA_MOM_MODEL", "z-ai/glm-5.2")
-AGENT1_MODEL: str = os.getenv("AGENT1_MODEL", "openai/gpt-oss-120b")
-AGENT2_MODEL: str = os.getenv("AGENT2_MODEL", "deepseek-ai/deepseek-v4-flash")
-AGENT3_MODEL: str = os.getenv("AGENT3_MODEL", "z-ai/glm-5.2")
-AGENT4_MODEL: str = os.getenv("AGENT4_MODEL", "z-ai/glm-5.2")
-AGENT5_MODEL: str = os.getenv("AGENT5_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
-AGENT6_MODEL: str = os.getenv("AGENT6_MODEL", "openai/gpt-oss-120b")
+# Groq fallback model used by ProviderManager when NVIDIA is unavailable
+GROQ_FALLBACK_MODEL: str = os.getenv("GROQ_FALLBACK_MODEL", "openai/gpt-oss-120b")
 
 # ---------------------------------------------------------------------------
 # Phase 4: Report Generation Settings

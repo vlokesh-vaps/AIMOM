@@ -6,6 +6,8 @@ import requests
 
 from config.settings import (
     OLLAMA_BASE_URL,
+    OLLAMA_API_KEY,
+    OLLAMA_MODEL,
     AI_MODEL,
     AI_TEMPERATURE,
     AI_MAX_TOKENS,
@@ -37,7 +39,6 @@ class OllamaAIProvider(BaseAIProvider):
 
     def __init__(self) -> None:
         self._base_url: str = OLLAMA_BASE_URL or "http://localhost:11434"
-        from config.settings import OLLAMA_API_KEY, OLLAMA_MODEL
         self._api_key: str = OLLAMA_API_KEY
         self._online_model: str = OLLAMA_MODEL
 

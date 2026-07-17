@@ -7,7 +7,7 @@ be tested, replaced, and monitored independently.
 
 Transcript -> Transcript Cleaner -> Intelligent Chunking Engine -> Groq Chunk
 Extractor (`openai/gpt-oss-20b`) -> Python Merge Engine -> Pydantic Validation
--> Ollama Final Reviewer (`gemma4:latest`) -> PDF / Excel / Database.
+-> PDF / Excel / Database.
 
 ## Package Layout
 

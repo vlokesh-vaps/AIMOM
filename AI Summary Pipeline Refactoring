@@ -1,0 +1,108 @@
+# Walkthrough: AI Summary Pipeline Refactoring
+
+## Summary
+
+Refactored the AI Minutes of Meeting (MoM) pipeline from a sequential 4-agent architecture (sending the same transcript through Topic → Discussion → Action → Synthesis agents) to a **production-grade asynchronous parallel single-extraction architecture** that processes each transcript chunk exactly once.
+
+## Architecture: Before vs After
+
+```mermaid
+graph LR
+    subgraph Before ["Old: Sequential 4-Agent Pipeline"]
+        direction TB
+        A1["Agent 1: Topic Segmentation<br/>N chunks × 1 call"] --> A2["Agent 2: Discussion + Action<br/>N chunks × 1 call"]
+        A2 --> A3["Agent 3: Final Synthesis<br/>1 call"]
+        A3 --> A4["Agent 4: Validation<br/>1 call"]
+    end
+
+    subgraph After ["New: Async Parallel Pipeline"]
+        direction TB
+        S1["Stage 1: Transcript Cleaner<br/>(pure Python)"] --> S2["Stage 2: Smart Chunking<br/>(pure Python)"]
+        S2 --> S3["Stage 3: Parallel Extraction<br/>(asyncio + semaphore, 1 call/chunk)"]
+        S3 --> S4["Stage 4: Incremental Merge<br/>(pure Python)"]
+        S4 --> S5["Stage 5: Final Synthesis<br/>(1 LLM call)"]
+        S5 --> S6["Stage 6: Validation<br/>(never blocks)"]
+    end
+```
+
+### API Call Reduction
+
+| Scenario (15 chunks) | Old Pipeline | New Pipeline | Reduction |
+|---|---|---|---|
+| Agent calls per chunk | 2 (Topic + Discussion) | 1 (Extraction) | **50%** |
+| Total chunk calls | 30 | 15 | **50%** |
+| Synthesis calls | 1 | 1 | Same |
+| Validation calls | 1 | 0 (local) | **100%** |
+| **Total LLM calls** | **32** | **16** | **50%** |
+| With retries (est.) | 50-80+ | 16-20 | **~70-75%** |
+
+## Files Modified
+
+### [settings.py](file:///c:/Users/Vaps/PycharmProjects/AIMOM/config/settings.py)
+Added new configuration settings:
+- `MAX_CONCURRENT_EXTRACTIONS` — bounded async concurrency (default: 3)
+- `EXTRACTION_MODEL` / `SYNTHESIS_MODEL` — model assignments
+- `EXTRACTION_MAX_TOKENS` / `SYNTHESIS_MAX_TOKENS` — compact output budgets
+- `PROVIDER_COOLDOWN_SECONDS` — rate-limit cooldown period
+- `PROMPT_VERSION` — checkpoint invalidation tag
+- `CHECKPOINT_DIR` — checkpoint storage path
+
+### [provider_manager.py](file:///c:/Users/Vaps/PycharmProjects/AIMOM/ai/providers/provider_manager.py)
+Refactored from fixed primary/fallback to **dynamic health-based provider scheduling**:
+- `_rank_providers()` — orders providers by health status and average latency
+- `_is_in_cooldown()` / `_cooldown_remaining()` — prevents hammering rate-limited providers
+- `_record_success()` — tracks exponential moving average latency
+- `_record_failure(enter_cooldown=True)` — triggers cooldown on 429 errors
+- `execute()` — iterates ranked providers with automatic skip for cooled-down ones
+
+### [checkpoint_manager.py](file:///c:/Users/Vaps/PycharmProjects/AIMOM/ai/stages/checkpoint_manager.py) `[NEW]`
+- SHA-256 content-hash based chunk identification
+- Rich metadata: provider, model, prompt version, retry count, timestamp, token usage
+- Automatic invalidation when `PROMPT_VERSION` changes
+- `load_all_completed()` for bulk resume detection
+- `cleanup()` on successful pipeline completion
+
+### [merge_engine.py](file:///c:/Users/Vaps/PycharmProjects/AIMOM/ai/stages/merge_engine.py) `[NEW]`
+- Incremental `add_chunk()` / `finalize()` pattern
+- Advanced normalization: names (title-case), dates, priorities (High/Medium/Low)
+- SequenceMatcher-based deduplication for topics, discussions, and action items
+- Missing-field validation with fallback defaults
+- Chronological ordering by chunk index
+
+### [six_agent_pipeline.py](file:///c:/Users/Vaps/PycharmProjects/AIMOM/ai/pipeline/six_agent_pipeline.py)
+Complete rewrite as `SingleExtractionPipeline`:
+- `asyncio.Semaphore`-bounded parallel extraction
+- One compact LLM call per chunk (structured JSON output)
+- `ThreadPoolExecutor` bridges sync ProviderManager with async workers
+- Final synthesis receives **only merged JSON** (not raw transcript)
+- `FourAgentPipeline = SingleExtractionPipeline` alias for backward compatibility
+
+### [manager.py](file:///c:/Users/Vaps/PycharmProjects/AIMOM/ai/pipeline/manager.py)
+- Updated imports and docstrings to reference `SingleExtractionPipeline`
+- Public API (`analyze_meeting`, `translate_to_english`) **unchanged**
+
+### [__init__.py](file:///c:/Users/Vaps/PycharmProjects/AIMOM/ai/stages/__init__.py)
+- Added exports for `CheckpointManager` and `MergeEngine`
+
+### [.env](file:///c:/Users/Vaps/PycharmProjects/AIMOM/.env)
+- Added new pipeline settings with the old 4-agent settings marked as legacy
+
+## What Was NOT Changed
+
+- **UI** (`templates/index.html`) — untouched
+- **API endpoints** (`app.py`) — untouched
+- **Report generators** (`reports/`) — untouched
+- **MeetingSummary schema** (`ai/models/meeting.py`) — untouched
+- **Transcript Cleaner** (`ai/stages/transcript_cleaner.py`) — reused as-is
+- **Chunking Engine** (`ai/stages/chunking_engine.py`) — reused as-is
+- **STT providers** (`services/stt/`) — untouched
+
+## Verification Results
+
+| Test | Result |
+|---|---|
+| All module imports | ✅ Pass |
+| `FourAgentPipeline is SingleExtractionPipeline` | ✅ True |
+| `app.py` entrypoint load | ✅ Pass |
+| ProviderManager initialization | ✅ `['groq', 'nvidia'] configured` |
+| App title | ✅ `AI Meeting Minutes API` |

@@ -71,6 +71,8 @@ class TranscriptCleaner:
         text = self._normalize_timestamps(text)
         text = self._remove_fillers(text)
         text = self._remove_stutters(text)
+        text = self._remove_repeated_phrases(text)
+        text = self._normalize_punctuation_spacing(text)
         text = self._collapse_whitespace(text)
         text = self._remove_empty_turns(text)
 
@@ -148,6 +150,34 @@ class TranscriptCleaner:
     def _remove_stutters(text: str) -> str:
         """Collapse repeated adjacent words: 'the the the' → 'the'."""
         return _STUTTER_RE.sub(r"\1", text)
+
+    @staticmethod
+    def _remove_repeated_phrases(text: str) -> str:
+        """Collapse short consecutive ASR phrase repetitions."""
+        cleaned_lines = []
+        for line in text.splitlines():
+            words = line.split()
+            changed = True
+            while changed:
+                changed = False
+                for size in range(4, 1, -1):
+                    index = 0
+                    while index + (size * 2) <= len(words):
+                        left = [word.casefold().strip(".,;:!?()[]") for word in words[index:index + size]]
+                        right = [word.casefold().strip(".,;:!?()[]") for word in words[index + size:index + (size * 2)]]
+                        if left == right:
+                            del words[index + size:index + (size * 2)]
+                            changed = True
+                        else:
+                            index += 1
+            cleaned_lines.append(" ".join(words))
+        return "\n".join(cleaned_lines)
+
+    @staticmethod
+    def _normalize_punctuation_spacing(text: str) -> str:
+        """Remove spacing artifacts left by filler and ASR cleanup."""
+        text = re.sub(r"\s+([,.;:!?])", r"\1", text)
+        return re.sub(r"([,;:])\1+", r"\1", text)
 
     @staticmethod
     def _collapse_whitespace(text: str) -> str:

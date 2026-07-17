@@ -1,64 +1,98 @@
 # AIMOM: LLM Pipeline Architecture Documentation
 
-Based on a detailed analysis of the `AIMOM` codebase, here is a comprehensive breakdown of how Large Language Models (LLMs) are utilized within the meeting analysis pipeline.
+Here is a comprehensive breakdown of how Large Language Models (LLMs) are utilized within the meeting analysis pipeline.
 
 ## Overview
 
-The application is a FastAPI-based backend that handles transcription (STT) and subsequent AI analysis of meeting transcripts to generate Minutes of Meeting (MoM) reports. The core of the LLM orchestration is managed by the `AIManager` located in `ai/pipeline/manager.py`.
+The application is a FastAPI-based backend that handles transcription (STT) and subsequent AI analysis of meeting transcripts to generate Minutes of Meeting (MoM) reports. 
 
-The AI analysis phase executes in one of two distinct operational modes depending on the selected provider:
-1. **Six-Agent Pipeline (`six_agent_pipeline.py`)**: A multi-agent workflow utilizing a mix of NVIDIA and Groq LLMs for fine-grained task separation.
-2. **Standard 6-Stage Pipeline (`manager.py`)**: A hybrid approach where most stages are handled deterministically in pure Python, and the LLM is only utilized for the heavy-lifting extraction phase.
+The core of the LLM orchestration is managed by `AIManager` (`ai/pipeline/manager.py`) which delegates execution to the **Four-Agent Pipeline** (`FourAgentPipeline` in `ai/pipeline/six_agent_pipeline.py`). All LLM requests route through the centralized `ProviderManager` (`ai/providers/provider_manager.py`) to manage API retries, rate limits, health monitoring, and automatic failovers.
 
 ---
 
-## 1. The Six-Agent Pipeline (`SixAgentPipeline`)
-When the NVIDIA provider is selected and Groq is available, the system triggers `SixAgentPipeline`. This pipeline treats the extraction process as a sequential, multi-agent workflow where each agent is an LLM with a specific, focused prompt. 
+## 1. Centralized Provider Management (`ProviderManager`)
 
-The pipeline chunks the transcript first (to stay within context windows) and passes each chunk through these LLM agents:
+To maintain high availability and reliability on free-tier APIs, the codebase does not call model APIs directly. Instead, every LLM call routes through `ProviderManager` which acts as a resilient gateway.
 
-- **Agent 1 (Transcript Cleanup):** 
-  - **Provider:** Groq
-  - **Role:** Cleans raw text, preserves speaker names/facts, and normalizes the format.
-- **Agent 2 (Topic Segmentation):** 
-  - **Provider:** NVIDIA
-  - **Role:** Segments the transcript into topics based on the agenda.
-- **Agent 3 (Discussion Extraction):** 
-  - **Provider:** NVIDIA
-  - **Role:** Extracts discussion points mapped to the agenda, providing factual summaries.
-- **Agent 4 (Action Extraction):** 
-  - **Provider:** NVIDIA
-  - **Role:** Extracts action items, strictly mapping task owners and target dates to the transcript without hallucinating.
-- **Agent 5 (Decision Synthesis):** 
-  - **Provider:** NVIDIA
-  - **Role:** Takes the outputs of Agents 2, 3, and 4 to synthesize final decisions and the executive summary.
-- **Agent 6 (Validation):** 
-  - **Provider:** Groq
-  - **Role:** Validates the final synthesized summary for missing facts or logical inconsistencies.
+```mermaid
+graph TD
+    A[Agent Request] --> B[ProviderManager.execute]
+    B --> C{Primary Provider<br/>NVIDIA healthy?}
+    C -->|Yes| D[Call NVIDIA]
+    D -->|Success| E[Return Response]
+    D -->|Transient Error| F{Retries<br/>remaining?}
+    F -->|Yes| G[Exponential Backoff]
+    G --> D
+    F -->|No| H[Mark NVIDIA unhealthy]
+    H --> I[Call Groq Fallback]
+    I -->|Success| E
+    I -->|Transient Error| J{Retries<br/>remaining?}
+    J -->|Yes| K[Exponential Backoff]
+    K --> I
+    J -->|No| L[Both Failed - Return Error]
+    C -->|No - recovering| I
+    
+    M[Health Monitor] -->|Periodic check| C
+    M -->|Recovery detected| N[Restore NVIDIA as primary]
+```
 
----
-
-## 2. The Standard 6-Stage Pipeline
-If a provider other than NVIDIA is selected (e.g., Groq default, or Gemini), the system uses the standard pipeline defined directly in `AIManager`. This approach minimizes LLM API calls by relying on deterministic Python logic for data structuring.
-
-- **Stage 1 (Transcript Cleaner - Pure Python):** Normalizes text and reduces noise without using an LLM.
-- **Stage 2 (Chunking Engine - Pure Python):** Intelligently splits the transcript into token-aware chunks preserving overlap context.
-- **Stage 3 (Chunk Extractor - LLM):** 
-  - **Provider:** Groq (default) or other configured LLMs.
-  - **Role:** The **only LLM step** in this pipeline. It processes chunks to extract structured JSON data containing discussion points, actions, and decisions.
-- **Stage 4 (Merge Engine - Pure Python):** Combines the extracted JSON chunks from Stage 3 into a cohesive summary, resolving duplicates.
-- **Stage 5 (Validation Layer - Pure Python):** Verifies the completeness of the merged summary programmatically.
-- **Stage 6:** Final result delivery.
+### Key Capabilities
+- **Automatic Failover**: If the primary provider (NVIDIA) fails or rate-limits, requests are automatically routed to the fallback provider (Groq) with equivalent model configurations.
+- **Exponential Backoff**: Transient errors (429 Rate Limit, 5xx Server Errors, Connection Timeouts) trigger 3 retries with increasing delay (2s -> 4s -> 8s) rather than blocking on long cooldown periods.
+- **Dynamic Context Budgeting**: If a model returns a truncated response, the manager automatically catches it and retries with an expanded `max_tokens` limit.
+- **Health Monitoring & Auto-Recovery**: If a provider is marked unhealthy, the manager periodically sends probes in the background. Once the provider is responsive again, future requests automatically route back to it without requiring an application restart.
 
 ---
 
-## 3. Resilience and Failover
-The `AIManager` implements a robust queueing and failover mechanism:
-- **Provider Priority:** Groq -> NVIDIA -> Gemini.
-- **Transient Retry:** The system gracefully handles `RateLimit`, `Timeout`, and `50x` errors using an exponential backoff (`_execute_with_transient_retry`). 
-- **Context Window Adaptation:** If an LLM returns a truncated response, the pipeline automatically detects it and retries with an expanded `max_tokens` budget.
+## 2. The Four-Agent Pipeline
 
-## 4. Role of the Temp Test Scripts and NVIDIA Integration
-The files located in the `temp/` directory (`glm-5.2.py`, `nemotron-3.py`, `qwen.py`) were originally standalone diagnostic scripts. 
-- **Recent Update:** The exact working methods and API configurations (e.g., using `openai` client, `stream=True`, and `extra_body` kwargs) from these test scripts have been seamlessly integrated into the core pipeline.
-- The `NvidiaAIProvider` is now completely modularized into the `ai/providers/nvidia/` directory. It uses a **Strategy Pattern**, dynamically loading specific configurations from `ai/providers/nvidia/models/`. This architecture makes adding new NVIDIA models as simple as dropping a new Python file into the models folder.
+The transcript analysis is handled in a structured, multi-agent sequence. 
+
+```
+[Raw Transcript] ──> [Cleaner (Python)] ──> [Chunker (Python)]
+                                                   │
+   ┌───────────────────────────────────────────────┘
+   │
+   ├──> Agent 1: Topic Segmentation (NVIDIA DeepSeek)  ──> topics
+   │
+   ├──> Agent 2: Discussion + Actions (NVIDIA GLM)     ──> discussions & actions
+   │
+   ├──> Agent 3: Final Synthesis (NVIDIA Nemotron)     ──> MeetingSummary
+   │
+   └──> Agent 4: Validation (Groq — Optional)          ──> warnings
+```
+
+### Flow Breakdown
+
+#### Step 1: Pre-processing (Pure Python)
+1. **Transcript Cleaner**: Normalizes text and strips filler words.
+2. **Chunking Engine**: Splits the text into token-budgeted chunks (900 tokens) with 3 lines of overlap to preserve conversational context across chunk boundaries.
+
+#### Step 2: Agent 1 — Topic Segmentation
+- **Model**: NVIDIA `deepseek-ai/deepseek-v4-flash` (Fallback: Groq `openai/gpt-oss-120b`)
+- **Role**: Identifies key meeting topics and agenda mappings for each chunk.
+
+#### Step 3: Agent 2 — Discussion & Action Item Extraction
+- **Model**: NVIDIA `z-ai/glm-5.2` (Fallback: Groq `openai/gpt-oss-120b`)
+- **Role**: Extracts detailed discussion narratives and associated action items (including tasks, owners, and target dates) in a single LLM call per chunk.
+- **Python Post-processing**: Action items are automatically deduplicated via sequence matching (85% similarity threshold).
+
+#### Step 4: Agent 3 — Final Synthesis
+- **Model**: NVIDIA `nvidia/nemotron-3-ultra-550b-a55b` (Fallback: Groq `openai/gpt-oss-120b`)
+- **Role**: Merges extracted points into a cohesive report, generates the executive summary, and extracts parking lot, decisions, and risk items.
+
+#### Step 5: Agent 4 — Validation (Optional)
+- **Model**: Groq `openai/gpt-oss-120b`
+- **Role**: Scans the generated summary for logical inconsistencies.
+- **Constraint**: Wrapped in try/except blocks; errors here will log warnings but never prevent the report from compiling and exporting.
+
+---
+
+## 3. Model Mappings
+
+| Agent | Primary Provider (Model) | Fallback Provider (Model) | Max Tokens |
+|-------|--------------------------|---------------------------|------------|
+| **Agent 1** (Topic Seg) | NVIDIA (`deepseek-ai/deepseek-v4-flash`) | Groq (`openai/gpt-oss-120b`) | 1200 |
+| **Agent 2** (Discussion+Action) | NVIDIA (`z-ai/glm-5.2`) | Groq (`openai/gpt-oss-120b`) | 2400 |
+| **Agent 3** (Synthesis) | NVIDIA (`nvidia/nemotron-3-ultra-550b-a55b`) | Groq (`openai/gpt-oss-120b`) | 1800 |
+| **Agent 4** (Validation) | Groq (`openai/gpt-oss-120b`) | None | 1200 |

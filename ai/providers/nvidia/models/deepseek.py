@@ -1,29 +1,18 @@
 """DeepSeek model execution strategy for NVIDIA NIM."""
-from email import message
-import os
-from openai import OpenAI
-from dotenv import load_dotenv
-load_dotenv()
+
 from ai.providers.base import AIProviderTruncatedResponseError
 
 
 def execute(client, model: str, messages: list, temperature: float, max_tokens: int, top_p: float) -> str:
     """Execute a DeepSeek model via NVIDIA NIM with streaming and thinking support."""
-    if client is None:
-        client = OpenAI(
-            base_url="https://integrate.api.nvidia.com/v1",
-            api_key=os.environ["NVIDIA_API_KEY"]
-        )
-
-
     completion = client.chat.completions.create(
-  model="deepseek-ai/deepseek-v4-flash",
-  messages=message,
-  temperature=1,
-  top_p=0.95,
-  max_tokens=16384,
-  extra_body={"chat_template_kwargs":{"thinking":True,"reasoning_effort":"high"}},
-        stream=True
+        model=model,
+        messages=messages,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
+        extra_body={"chat_template_kwargs": {"thinking": True, "reasoning_effort": "high"}},
+        stream=True,
     )
 
     final_content = []
