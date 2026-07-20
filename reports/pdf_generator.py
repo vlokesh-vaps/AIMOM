@@ -137,12 +137,12 @@ class PDFGenerator:
             rows.append(
                 f"""
                 <tr>
-                    <td class="center">{idx}</td>
-                    <td>{PDFGenerator._html(agenda)}</td>
-                    <td>{summary_html}</td>
-                    <td>{actions_html}</td>
-                    <td>{assigned_html}</td>
-                    <td>{date_html}</td>
+                    <td class="center" width="6%">{idx}</td>
+                    <td width="18%">{PDFGenerator._html(agenda)}</td>
+                    <td width="30%">{summary_html}</td>
+                    <td width="24%">{actions_html}</td>
+                    <td width="11%">{assigned_html}</td>
+                    <td width="11%">{date_html}</td>
                 </tr>
                 """
             )
@@ -157,12 +157,12 @@ class PDFGenerator:
             rows.append(
                 f"""
                 <tr>
-                    <td class="center">{next_index}</td>
-                    <td>{PDFGenerator._html(agenda)}</td>
-                    <td></td>
-                    <td>{PDFGenerator._html(PDFGenerator._get(item, "task", ""))}</td>
-                    <td>{PDFGenerator._html(PDFGenerator._get(item, "owner", ""))}</td>
-                    <td>{PDFGenerator._html(PDFGenerator._get(item, "target_date", ""))}</td>
+                    <td class="center" width="6%">{next_index}</td>
+                    <td width="18%">{PDFGenerator._html(agenda)}</td>
+                    <td width="30%"></td>
+                    <td width="24%">{PDFGenerator._html(PDFGenerator._get(item, "task", ""))}</td>
+                    <td width="11%">{PDFGenerator._html(PDFGenerator._get(item, "owner", ""))}</td>
+                    <td width="11%">{PDFGenerator._html(PDFGenerator._get(item, "target_date", ""))}</td>
                 </tr>
                 """
             )

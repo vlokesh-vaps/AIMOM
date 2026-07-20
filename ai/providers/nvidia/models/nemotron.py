@@ -19,7 +19,10 @@ def execute(client, model: str, messages: list, temperature: float, max_tokens: 
     for chunk in completion:
         if getattr(chunk, "choices", None) and len(chunk.choices) > 0:
             if getattr(chunk.choices[0], "finish_reason", None) == "length":
-                raise AIProviderTruncatedResponseError("NVIDIA Nemotron response was truncated.")
+                raise AIProviderTruncatedResponseError(
+                    "NVIDIA Nemotron response was truncated.",
+                    partial_response="".join(final_content),
+                )
 
             delta = getattr(chunk.choices[0], "delta", None)
             if delta and getattr(delta, "content", None) is not None:

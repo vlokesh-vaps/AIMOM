@@ -1,16 +1,16 @@
 """Async Parallel Single-Extraction MoM Pipeline.
 
 Architecture:
-  1. Transcript Cleaning   — pure Python (reused TranscriptCleaner)
-  2. Smart Chunking        — pure Python (reused ChunkingEngine)
-  3. Parallel Extraction   — asyncio + Semaphore, one LLM call per chunk
+  1. Transcript Cleaning   — pure Python
+  2. Smart Chunking        — pure Python
+  3. Parallel Extraction   — asyncio, one LLM call per chunk via ProviderManager
   4. Checkpoint Manager    — SHA-256 hash-based save/resume
   5. Incremental Merge     — pure Python dedup + normalization
-  6. Final Synthesis       — single LLM call on merged JSON only
+  6. Final Synthesis       — single LLM call for high-level summary metadata
   7. Validation            — optional, never blocks
 
-All LLM calls route through ProviderManager for automatic failover,
-retry, cooldown, and health-based recovery.
+All LLM calls route through ProviderManager for adaptive scheduling,
+load-balancing, and truncation recovery.
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ import hashlib
 import json
 import re
 import time
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TYPE_CHECKING
 
 from ai.models.meeting import ActionItem, DiscussionPoint, MeetingSummary
@@ -33,7 +32,6 @@ from config.settings import (
     EXTRACTION_MODEL,
     GROQ_FALLBACK_MODEL,
     LLM_CHUNK_SIZE_TOKENS,
-    MAX_CONCURRENT_EXTRACTIONS,
     SYNTHESIS_MAX_TOKENS,
     SYNTHESIS_MODEL,
 )
@@ -53,17 +51,13 @@ class SingleExtractionPipeline:
     """Production-grade async parallel MoM pipeline.
 
     Processes each transcript chunk exactly once (one LLM call) in parallel,
-    saves checkpoints for fault tolerance, merges results locally in Python,
-    and uses a single final LLM call to produce business-language output
-    matching the existing MeetingSummary schema.
+    saves checkpoints for fault tolerance, merges results locally in Python
+    to preserve 100% of granular details, and uses a final LLM call only
+    for executive summary, decisions, and metadata synthesis.
     """
 
     def __init__(self, provider_manager: ProviderManager) -> None:
         self._pm = provider_manager
-        self._thread_pool = ThreadPoolExecutor(
-            max_workers=MAX_CONCURRENT_EXTRACTIONS + 1,
-            thread_name_prefix="llm-worker",
-        )
 
     # ------------------------------------------------------------------
     # Main entry point (sync — called from manager.py)
@@ -122,6 +116,8 @@ class SingleExtractionPipeline:
         attendees: str | None,
         agenda: str | None,
     ) -> MeetingSummary:
+        pipeline_start = time.monotonic()
+
         # ── Stage 1: Transcript Cleaning (pure Python) ────────────────
         logger.info("[Stage 1/6] Cleaning transcript...")
         cleaned = TranscriptCleaner().clean(transcript)
@@ -146,28 +142,20 @@ class SingleExtractionPipeline:
         # Load existing checkpoints (resume support)
         existing = checkpoint_mgr.load_all_completed(chunk_hashes)
 
-        # ── Stage 3: Parallel Extraction (async + semaphore) ──────────
+        # ── Stage 3: Parallel Extraction (async via scheduler) ────────
         logger.info(
-            "[Stage 3/6] Extracting from %d chunks (concurrency=%d, %d cached)...",
-            len(chunks), MAX_CONCURRENT_EXTRACTIONS, len(existing),
+            "[Stage 3/6] Extracting from %d chunks (%d cached)...",
+            len(chunks), len(existing),
         )
-        semaphore = asyncio.Semaphore(MAX_CONCURRENT_EXTRACTIONS)
         extraction_start = time.monotonic()
 
         tasks = []
         for chunk in chunks:
             chunk_hash = chunk_hashes[chunk.index]
             tasks.append(
-                self._extract_chunk_with_semaphore(
-                    semaphore=semaphore,
-                    chunk=chunk,
-                    chunk_hash=chunk_hash,
-                    title=title,
-                    date=date,
-                    attendees=attendees,
-                    agenda=agenda,
-                    checkpoint_mgr=checkpoint_mgr,
-                    existing=existing,
+                self._extract_single_chunk(
+                    chunk, chunk_hash, title, date, attendees, agenda,
+                    checkpoint_mgr, existing,
                 )
             )
 
@@ -202,7 +190,7 @@ class SingleExtractionPipeline:
             merge_engine.add_chunk(data, chunk_index)
         merged = merge_engine.finalize()
 
-        # ── Stage 5: Final Synthesis (single LLM call) ────────────────
+        # ── Stage 5: Final Synthesis (single LLM call for summary metadata) ──
         logger.info("[Stage 5/6] Final synthesis on merged JSON...")
         summary = await self._final_synthesis(
             title=title,
@@ -219,30 +207,31 @@ class SingleExtractionPipeline:
         if failed_count == 0:
             checkpoint_mgr.cleanup()
 
+        # Generate observability execution report
+        total_time = time.monotonic() - pipeline_start
+        report_md = self._pm.generate_execution_report(
+            total_duration=total_time,
+            checkpoints_cached=len(existing),
+        )
+
+        # Save Markdown report to output folder
+        from config.settings import OUTPUT_DIR
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        report_path = OUTPUT_DIR / f"execution_report_{timestamp}.md"
+        try:
+            with open(report_path, "w", encoding="utf-8") as f:
+                f.write(report_md)
+            logger.info("[ProviderManager] Saved pipeline execution report: %s", report_path)
+        except OSError as exc:
+            logger.warning("[ProviderManager] Failed to save execution report: %s", exc)
+
+        logger.info("\n" + "=" * 70 + "\nPIPELINE OBSERVABILITY REPORT SUMMARY\n" + "=" * 70 + f"\n{report_md}\n" + "=" * 70)
+
         return summary
 
     # ------------------------------------------------------------------
     # Stage 3 — Per-chunk extraction
     # ------------------------------------------------------------------
-
-    async def _extract_chunk_with_semaphore(
-        self,
-        semaphore: asyncio.Semaphore,
-        chunk: TranscriptChunk,
-        chunk_hash: str,
-        title: str,
-        date: str,
-        attendees: str | None,
-        agenda: str | None,
-        checkpoint_mgr: CheckpointManager,
-        existing: dict[str, dict[str, Any]],
-    ) -> tuple[int, dict[str, Any]] | None:
-        """Acquire semaphore, extract from one chunk, save checkpoint."""
-        async with semaphore:
-            return await self._extract_single_chunk(
-                chunk, chunk_hash, title, date, attendees, agenda,
-                checkpoint_mgr, existing,
-            )
 
     async def _extract_single_chunk(
         self,
@@ -255,11 +244,7 @@ class SingleExtractionPipeline:
         checkpoint_mgr: CheckpointManager,
         existing: dict[str, dict[str, Any]],
     ) -> tuple[int, dict[str, Any]] | None:
-        """Extract structured data from a single chunk.
-
-        If a valid checkpoint exists, returns cached data.
-        Otherwise, makes one LLM call and saves the result.
-        """
+        """Extract structured data from a single chunk using priority scheduler."""
         idx = chunk.index
 
         # Check for existing checkpoint
@@ -278,20 +263,17 @@ class SingleExtractionPipeline:
         )
 
         worker_start = time.monotonic()
-        logger.info("[Worker %d] Starting extraction (hash=%s)...", idx, chunk_hash)
+        logger.info("[Worker %d] Dispatching chunk extraction (hash=%s)...", idx, chunk_hash)
 
         try:
-            loop = asyncio.get_running_loop()
-            raw_response = await loop.run_in_executor(
-                self._thread_pool,
-                lambda: self._pm.execute(
-                    system_prompt=system_prompt,
-                    user_prompt=user_prompt,
-                    primary_model=EXTRACTION_MODEL,
-                    fallback_model=GROQ_FALLBACK_MODEL,
-                    max_tokens=EXTRACTION_MAX_TOKENS,
-                    agent_name=f"Extraction-Chunk-{idx}",
-                ),
+            raw_response = await self._pm.execute_async(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                task_type="extraction",
+                max_tokens=EXTRACTION_MAX_TOKENS,
+                priority=1,  # Extraction has normal priority
+                chunk_index=idx,
+                agent_name=f"Extraction-Chunk-{idx}",
             )
         except Exception as exc:
             logger.error("[Worker %d] Extraction failed: %s", idx, exc)
@@ -334,27 +316,24 @@ class SingleExtractionPipeline:
         agenda: str | None,
         merged: dict[str, Any],
     ) -> MeetingSummary:
-        """Convert merged structured JSON into a MeetingSummary via one LLM call."""
+        """Synthesize high-level metadata (executive summary, decisions, risks, pending)."""
         system_prompt = (
-            "You are a professional meeting minutes writer. Convert the structured "
-            "data below into polished, professional business language suitable for "
-            "corporate Minutes of Meeting. Output ONLY valid JSON matching this schema:\n"
+            "You are a professional meeting minutes writer. Synthesize the final high-level "
+            "meeting outcomes, decisions, risks, pending items, and the executive summary. "
+            "Output ONLY valid JSON matching this schema:\n"
             "{\n"
             '  "executive_summary": "...",\n'
             '  "topics_covered": ["..."],\n'
-            '  "discussion_points": [{"agenda_item":"...", "point":"...", '
-            '"detailed_summary":"...", "decision":"..."}],\n'
-            '  "action_items": [{"agenda_item":"...", "task":"...", '
-            '"owner":"...", "target_date":"...", "priority":"..."}],\n'
             '  "decisions": ["..."],\n'
             '  "risks": ["..."],\n'
             '  "pending_items": ["..."]\n'
             "}\n"
             "Rules:\n"
-            "- Rewrite discussion summaries in professional business language.\n"
-            "- Preserve all factual content — never invent data.\n"
-            "- If owner or date is empty, keep it empty.\n"
-            "- Output ONLY the JSON object, no markdown fences or preamble."
+            "- Write a polished, detailed executive summary (2-3 paragraphs) in professional business language.\n"
+            "- Synthesize and list all key decisions made during the meeting.\n"
+            "- Identify and list any noted risks, concerns, or mitigations.\n"
+            "- List open questions, follow-ups, or pending items.\n"
+            "- Output ONLY the JSON object, no markdown fences, no preamble, and no other keys."
         )
         user_prompt = (
             f"Meeting title: {title}\n"
@@ -367,21 +346,18 @@ class SingleExtractionPipeline:
         synthesis_start = time.monotonic()
 
         try:
-            loop = asyncio.get_running_loop()
-            raw = await loop.run_in_executor(
-                self._thread_pool,
-                lambda: self._pm.execute(
-                    system_prompt=system_prompt,
-                    user_prompt=user_prompt,
-                    primary_model=SYNTHESIS_MODEL,
-                    fallback_model=GROQ_FALLBACK_MODEL,
-                    max_tokens=SYNTHESIS_MAX_TOKENS,
-                    agent_name="Final-Synthesis",
-                ),
+            raw = await self._pm.execute_async(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                task_type="synthesis",
+                max_tokens=SYNTHESIS_MAX_TOKENS,
+                priority=0,  # Synthesis has high priority
+                chunk_index=0,
+                agent_name="Final-Synthesis",
             )
         except Exception as exc:
             logger.error("[Stage 5/6] Final synthesis failed: %s", exc)
-            logger.info("[Stage 5/6] Falling back to raw merged data.")
+            logger.info("[Stage 5/6] Falling back to empty synthesis.")
             raw = None
 
         elapsed = time.monotonic() - synthesis_start
@@ -392,7 +368,7 @@ class SingleExtractionPipeline:
         else:
             synthesized = {}
 
-        # Build the MeetingSummary from synthesized (or fallback to merged)
+        # Build the MeetingSummary, taking discussion points and actions directly from merged
         return self._build_summary(
             title=title,
             date=date,
@@ -438,15 +414,18 @@ class SingleExtractionPipeline:
             '  "discussion_points": [{"agenda_item": "...", "point": "...", '
             '"detailed_summary": "...", "decision": "No Decision Taken"}],\n'
             '  "action_items": [{"agenda_item": "...", "task": "...", '
-            '"owner": "", "target_date": "", "priority": "Medium"}],\n'
+            '"owner": "Name of assignee", "target_date": "Target date / timeline", "priority": "Medium"}],\n'
             '  "decisions": ["..."],\n'
             '  "risks": ["..."],\n'
             '  "open_questions": ["..."]\n'
             "}\n"
             "Rules:\n"
             "- Be concise but complete. Do not omit any discussed item.\n"
-            "- owner must be a real person name from the transcript. Leave empty if unassigned.\n"
-            "- target_date must be copied exactly as stated. Leave empty if none.\n"
+            "- owner: Extract the name of the specific person assigned to do the task (e.g. 'Ganesh'). "
+            "Do NOT use the name of the person who requested or chaired it. If no owner is assigned, use ''.\n"
+            "- target_date: Extract the specific timeline mentioned (e.g. 'immediately', 'by tomorrow', "
+            "'next review meeting', '2026-07-20'). Do NOT leave empty if any verbal date/timeline is stated. "
+            "If no timeline is mentioned at all, use ''.\n"
             "- decision: if no decision was taken, use 'No Decision Taken'.\n"
             "- Output ONLY the JSON object — no markdown fences, no preamble."
         )
@@ -489,7 +468,7 @@ class SingleExtractionPipeline:
             return {}
 
     # ------------------------------------------------------------------
-    # Build MeetingSummary (reused from old pipeline)
+    # Build MeetingSummary
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -501,25 +480,9 @@ class SingleExtractionPipeline:
         synthesized: dict[str, Any],
     ) -> MeetingSummary:
         """Build the final MeetingSummary matching the existing schema."""
-        # Prefer synthesized data, fall back to merged raw data
-        disc_source = synthesized.get("discussion_points") or merged.get("discussion_points", [])
-        action_source = synthesized.get("action_items") or merged.get("action_items", [])
-
-        discussion_points = [
-            DiscussionPoint(
-                point=str(item.get("point", "Untitled discussion")),
-                detailed_summary=str(item.get("detailed_summary", "")),
-                agenda_item=str(item.get("agenda_item", "Off Agenda Discussion")),
-                decision=str(item.get("decision", "No Decision Taken")),
-                status=str(item.get("status", "Open")),
-                authority_context=str(item.get("authority_context", "")),
-                tone_and_consequence=str(item.get("tone_and_consequence", "")),
-                cross_topic_context=str(item.get("cross_topic_context", "")),
-                implicit_decision=str(item.get("implicit_decision", "")),
-            )
-            for item in disc_source
-            if isinstance(item, dict)
-        ]
+        # Detailed items preserved directly from python-merged data (Fixes truncation!)
+        disc_source = merged.get("discussion_points", [])
+        action_source = merged.get("action_items", [])
 
         action_items = [
             ActionItem(
@@ -530,11 +493,44 @@ class SingleExtractionPipeline:
                 status=str(item.get("status", "Pending")),
                 agenda_item=str(item.get("agenda_item", "Off Agenda Discussion")),
                 authority_context=str(item.get("authority_context", "")),
-                tone_and_consequence=str(item.get("tone_and_consequence", "")),
             )
             for item in action_source
             if isinstance(item, dict) and item.get("task")
         ]
+
+        discussion_points = []
+        for item in disc_source:
+            if not isinstance(item, dict):
+                continue
+            
+            agenda_item = str(item.get("agenda_item", "Off Agenda Discussion"))
+            point = str(item.get("point", "Untitled discussion"))
+            
+            # Find matching action item for this discussion point (same agenda item or matching task)
+            matched_action = None
+            for ai in action_items:
+                if ai.agenda_item == agenda_item:
+                    matched_action = ai
+                    break
+
+            assigned_to = matched_action.owner if matched_action else "Not Specified"
+            deadline = matched_action.target_date if matched_action else "Not Specified"
+            priority = matched_action.priority if matched_action else "Medium"
+            task = matched_action.task if matched_action else "No Action Item"
+
+            discussion_points.append(
+                DiscussionPoint(
+                    point=point,
+                    detailed_summary=str(item.get("detailed_summary", "")),
+                    agenda_item=agenda_item,
+                    decision=str(item.get("decision", "No Decision Taken")),
+                    task=task,
+                    assigned_to=assigned_to or "Not Specified",
+                    deadline=deadline or "Not Specified",
+                    priority=priority,
+                    status=str(item.get("status", "Open"))
+                )
+            )
 
         topic_names = (
             synthesized.get("topics_covered")

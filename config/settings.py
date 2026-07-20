@@ -42,6 +42,7 @@ OUTPUT_DIR: Path = PROJECT_ROOT / "output"
 TEMP_DIR: Path = PROJECT_ROOT / "temp"
 LOGS_DIR: Path = PROJECT_ROOT / "logs"
 ASSETS_DIR: Path = PROJECT_ROOT / "assets"
+PROVIDER_CONFIG_PATH: Path = PROJECT_ROOT / "config" / "provider_config.json"
 
 # ---------------------------------------------------------------------------
 # NVIDIA NIM settings

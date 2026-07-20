@@ -20,7 +20,10 @@ def execute(client, model: str, messages: list, temperature: float, max_tokens: 
         if not getattr(chunk, "choices", None) or len(chunk.choices) == 0:
             continue
         if getattr(chunk.choices[0], "finish_reason", None) == "length":
-            raise AIProviderTruncatedResponseError("NVIDIA DeepSeek response was truncated.")
+            raise AIProviderTruncatedResponseError(
+                "NVIDIA DeepSeek response was truncated.",
+                partial_response="".join(final_content),
+            )
 
         delta = getattr(chunk.choices[0], "delta", None)
         if delta and getattr(delta, "content", None) is not None:

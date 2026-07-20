@@ -18,6 +18,10 @@ class AIProviderRateLimitError(AIProviderError):
 class AIProviderTruncatedResponseError(AIProviderError):
     """Raised when a provider stops because the completion token cap was hit."""
 
+    def __init__(self, message: str, partial_response: str = "") -> None:
+        super().__init__(message)
+        self.partial_response = partial_response
+
 
 class BaseAIProvider(ABC):
     """Abstract interface for meeting intelligence AI providers."""

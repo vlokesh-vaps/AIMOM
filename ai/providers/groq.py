@@ -103,12 +103,14 @@ class GroqAIProvider(BaseAIProvider):
             choice = result["choices"][0]
             
             # Check whether the model stopped because it reached the output token limit
+            completion = choice["message"]["content"]
             finish_reason = choice.get("finish_reason")
             if finish_reason == "length":
                 logger.error("Groq model output truncated: hit the output token limit (max_tokens).")
-                raise AIProviderTruncatedResponseError("Groq response was truncated (reached output token limit).")
-
-            completion = choice["message"]["content"]
+                raise AIProviderTruncatedResponseError(
+                    "Groq response was truncated (reached output token limit).",
+                    partial_response=completion,
+                )
             
             usage = result.get("usage", {})
             logger.info("Groq success: prompt_tokens=%d, completion_tokens=%d", 

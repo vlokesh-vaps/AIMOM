@@ -106,3 +106,7 @@ body {
 .action-item-list li {
     margin-bottom: 6px;
 }
+
+.unified-table tr {
+    page-break-inside: avoid;
+}

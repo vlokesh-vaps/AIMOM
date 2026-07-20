@@ -1,0 +1,29 @@
+{
+  "concurrency_limits": {
+    "nvidia": 3,
+    "groq": 2
+  },
+  "cooldown_durations": {
+    "nvidia": 30.0,
+    "groq": 60.0
+  },
+  "retry_policies": {
+    "nvidia": { "max_retries": 3, "initial_backoff": 2.0, "backoff_factor": 2.0 },
+    "groq": { "max_retries": 3, "initial_backoff": 2.0, "backoff_factor": 2.0 }
+  },
+  "model_preferences": {
+    "extraction": [
+      { "provider": "nvidia", "model": "deepseek-ai/deepseek-v4-flash", "weight": 90 },
+      { "provider": "nvidia", "model": "z-ai/glm-5.2", "weight": 70 },
+      { "provider": "groq", "model": "openai/gpt-oss-120b", "weight": 60 }
+    ],
+    "synthesis": [
+      { "provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b", "weight": 95 },
+      { "provider": "groq", "model": "openai/gpt-oss-120b", "weight": 80 }
+    ],
+    "translation": [
+      { "provider": "nvidia", "model": "z-ai/glm-5.2", "weight": 90 },
+      { "provider": "groq", "model": "openai/gpt-oss-120b", "weight": 70 }
+    ]
+  }
+}
